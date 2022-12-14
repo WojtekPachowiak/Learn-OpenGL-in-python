@@ -4,10 +4,9 @@ os.environ['SDL_VIDEO_WINDOW_POS'] = '400,200'
 import pygame
 from OpenGL.GL import *
 from OpenGL.GL.shaders import compileProgram, compileShader
-import pyrr
 from TextureLoader import load_texture_pygame
 from ObjLoader import ObjLoader
-
+import glm
 from camera import Camera
 
 # CAMERA settings
@@ -80,7 +79,19 @@ cube_indices, cube_buffer = ObjLoader.load_model("meshes/cube.obj", False)
 monkey_indices, monkey_buffer = ObjLoader.load_model("meshes/monkey.obj")
 floor_indices, floor_buffer = ObjLoader.load_model("meshes/floor.obj")
 
-shader = compileProgram(compileShader(vertex_src, GL_VERTEX_SHADER), compileShader(fragment_src, GL_FRAGMENT_SHADER))
+def load_shader(name:str):
+    #load fragment shader source
+    with open(f"./shaders/{name}.frag", "r") as f:
+        frag_src = f.read()
+    #load vertex shader source
+    with open(f"./shaders/{name}.vert", "r") as f:
+        vert_src = f.read()
+    shader = compileProgram(compileShader(vert_src, GL_VERTEX_SHADER), compileShader(frag_src, GL_FRAGMENT_SHADER))
+    return shader
+        
+outline_shader = load_shader("solid_color")
+texture_shader = load_shader("texture")
+
 
 # VAO and VBO
 VAO = glGenVertexArrays(3)
@@ -144,22 +155,32 @@ load_texture_pygame("meshes/cube.jpg", textures[0])
 load_texture_pygame("meshes/monkey.jpg", textures[1])
 load_texture_pygame("meshes/floor.jpg", textures[2])
 
-glUseProgram(shader)
-glClearColor(0, 0.1, 0.1, 1)
-glEnable(GL_DEPTH_TEST)
-glEnable(GL_BLEND)
+glEnable(GL_DEPTH_TEST);
+glDepthFunc(GL_LESS);
+glEnable(GL_STENCIL_TEST);
+glStencilFunc(GL_NOTEQUAL, 1, 0xFF);
+glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);
+
+
 glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
 
-projection = pyrr.matrix44.create_perspective_projection_matrix(45, 1280 / 720, 0.1, 100)
-cube_pos = pyrr.matrix44.create_from_translation(pyrr.Vector3([6, 4, 0]))
-monkey_pos = pyrr.matrix44.create_from_translation(pyrr.Vector3([-4, 4, -4]))
-floor_pos = pyrr.matrix44.create_from_translation(pyrr.Vector3([0, 0, 0]))
+cube_pos =  glm.translate(glm.mat4(1.0), [6, 4, 0])
+monkey_pos =  glm.translate(glm.mat4(1.0), [-4, 4, -4])
+floor_pos =  glm.translate(glm.mat4(1.0), [0, 0, 0])
+projection = glm.perspective(45, 1280 / 720, 0.1, 100)
 
-model_loc = glGetUniformLocation(shader, "model")
-proj_loc = glGetUniformLocation(shader, "projection")
-view_loc = glGetUniformLocation(shader, "view")
 
-glUniformMatrix4fv(proj_loc, 1, GL_FALSE, projection)
+glUseProgram(texture_shader)
+model_loc = glGetUniformLocation(texture_shader, "model")
+proj_loc = glGetUniformLocation(texture_shader, "projection")
+view_loc = glGetUniformLocation(texture_shader, "view")
+glUniformMatrix4fv(proj_loc, 1, GL_FALSE, glm.value_ptr(projection))
+
+glUseProgram(outline_shader)
+omodel_loc = glGetUniformLocation(outline_shader, "model")
+oproj_loc = glGetUniformLocation(outline_shader, "projection")
+oview_loc = glGetUniformLocation(outline_shader, "view")
+glUniformMatrix4fv(oproj_loc, 1, GL_FALSE, glm.value_ptr(projection))
 
 running = True
 
@@ -172,9 +193,7 @@ while running:
 
         if event.type == pygame.VIDEORESIZE:
             glViewport(0, 0, event.w, event.h)
-            projection = pyrr.matrix44.create_perspective_projection_matrix(45, event.w / event.h, 0.1, 100)
-            glUniformMatrix4fv(proj_loc, 1, GL_FALSE, projection)
-
+            projection = glm.perspective(45, event.w / event.h, 0.1, 100)
     keys_pressed = pygame.key.get_pressed()
     if keys_pressed[pygame.K_a]:
         cam.process_keyboard("LEFT", 0.08)
@@ -195,34 +214,69 @@ while running:
     elif mouse_pos[0] >= 1279:
         pygame.mouse.set_pos((0, mouse_pos[1]))
 
-
+    
     ct = pygame.time.get_ticks() / 1000
 
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
+    glClearColor(0, 0.1, 0.1, 1)
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT)
 
     view = cam.get_view_matrix()
-    glUniformMatrix4fv(view_loc, 1, GL_FALSE, view)
 
-    rot_y = pyrr.Matrix44.from_y_rotation(0.8 * ct)
-    model = pyrr.matrix44.multiply(rot_y, cube_pos)
+    glUseProgram(texture_shader)
+    glUniformMatrix4fv(view_loc, 1, GL_FALSE, glm.value_ptr(view))
+    glUniformMatrix4fv(proj_loc, 1, GL_FALSE, glm.value_ptr(projection))
+    glUseProgram(outline_shader)
+    glUniformMatrix4fv(oview_loc, 1, GL_FALSE, glm.value_ptr(view))
+    glUniformMatrix4fv(oproj_loc, 1, GL_FALSE, glm.value_ptr(projection))
 
-    # draw the cube
-    glBindVertexArray(VAO[0])
-    glBindTexture(GL_TEXTURE_2D, textures[0])
-    glUniformMatrix4fv(model_loc, 1, GL_FALSE, model)
-    glDrawElements(GL_TRIANGLES, len(cube_indices), GL_UNSIGNED_INT, None)
 
-    # draw the monkey
-    glBindVertexArray(VAO[1])
-    glBindTexture(GL_TEXTURE_2D, textures[1])
-    glUniformMatrix4fv(model_loc, 1, GL_FALSE, monkey_pos)
-    glDrawArrays(GL_TRIANGLES, 0, len(monkey_indices))
+    # # draw the monkey
+    # glBindVertexArray(VAO[1])
+    # glBindTexture(GL_TEXTURE_2D, textures[1])
+    # glUniformMatrix4fv(model_loc, 1, GL_FALSE, monkey_pos)
+    # glDrawArrays(GL_TRIANGLES, 0, len(monkey_indices))
 
     # draw the floor
+    glUseProgram(texture_shader)
+    glStencilMask(0x00)
     glBindVertexArray(VAO[2])
     glBindTexture(GL_TEXTURE_2D, textures[2])
-    glUniformMatrix4fv(model_loc, 1, GL_FALSE, floor_pos)
+    glUniformMatrix4fv(model_loc, 1, GL_FALSE, glm.value_ptr(floor_pos))
     glDrawArrays(GL_TRIANGLES, 0, len(floor_indices))
+    glBindVertexArray(0);
+
+    # draw the cube
+    glUseProgram(texture_shader)
+    glStencilFunc(GL_ALWAYS, 1, 0xFF)
+    glStencilMask(0xFF)
+    glBindVertexArray(VAO[0])
+    glBindTexture(GL_TEXTURE_2D, textures[0])
+    glUniformMatrix4fv(model_loc, 1, GL_FALSE, glm.value_ptr(cube_pos))
+    glDrawElements(GL_TRIANGLES, len(cube_indices), GL_UNSIGNED_INT, None)
+
+    # draw cube's outline
+    glStencilFunc(GL_NOTEQUAL, 1, 0xFF)
+    glStencilMask(0x00)
+    glDisable(GL_DEPTH_TEST)
+    glUseProgram(outline_shader)
+    scale = 1.1
+
+    glBindVertexArray(VAO[0])
+    glBindTexture(GL_TEXTURE_2D, textures[0])
+    model = cube_pos
+    # model = glm.translate(model, glm.vec3(-1.0, 0.0, -1.0))
+    model = glm.scale(model, glm.vec3(scale, scale, scale))
+
+    glUniformMatrix4fv(omodel_loc, 1, GL_FALSE, glm.value_ptr(model))
+    glDrawElements(GL_TRIANGLES, len(cube_indices), GL_UNSIGNED_INT, None)
+
+    glBindVertexArray(0);
+
+    glStencilMask(0xFF) 
+    glStencilFunc(GL_ALWAYS, 0, 0xFF)
+    glEnable(GL_DEPTH_TEST) 
+    
+
 
     pygame.display.flip()
 

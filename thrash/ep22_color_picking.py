@@ -4,7 +4,7 @@ from OpenGL.GL.shaders import compileProgram, compileShader
 import pyrr
 from TextureLoader import load_texture
 import numpy as np
-
+import glm
 
 mouse_x, mouse_y = 0, 0
 red_rot = False
@@ -149,6 +149,8 @@ cube_indices = [ 0,  1,  2,  2,  3,  0,
                12, 13, 14, 14, 15, 12,
                16, 17, 18, 18, 19, 16,
                20, 21, 22, 22, 23, 20]
+
+plane_buffer = []
 
 cube_indices = np.array(cube_indices, dtype=np.uint32)
 
