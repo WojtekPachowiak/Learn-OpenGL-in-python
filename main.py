@@ -4,52 +4,16 @@ os.environ['SDL_VIDEO_WINDOW_POS'] = '400,200'
 import pygame
 from OpenGL.GL import *
 from OpenGL.GL.shaders import compileProgram, compileShader
-from TextureLoader import load_texture_pygame, TEXTURE_WRAP
+from TextureLoader import load_texture_pygame, TEXTURE_WRAP, generate_framebuffer
 from ObjLoader import ObjLoader
 import glm
 from camera import Camera
-
+from constants import WIDTH, HEIGHT
 # CAMERA settings
 cam = Camera()
-WIDTH, HEIGHT = 1280, 720
+
 lastX, lastY = WIDTH / 2, HEIGHT / 2
 first_mouse = True
-
-
-vertex_src = """
-# version 330
-
-layout(location = 0) in vec3 a_position;
-layout(location = 1) in vec2 a_texture;
-layout(location = 2) in vec3 a_normal;
-
-uniform mat4 model;
-uniform mat4 projection;
-uniform mat4 view;
-
-out vec2 v_texture;
-
-void main()
-{
-    gl_Position = projection * view * model * vec4(a_position, 1.0);
-    v_texture = a_texture;
-}
-"""
-
-fragment_src = """
-# version 330
-
-in vec2 v_texture;
-
-out vec4 out_color;
-
-uniform sampler2D s_texture;
-
-void main()
-{
-    out_color = texture(s_texture, v_texture);
-}
-"""
 
 
 def mouse_look(xpos, ypos):
@@ -93,12 +57,43 @@ def load_shader(name:str):
         
 outline_shader = load_shader("solid_color")
 texture_shader = load_shader("texture")
+framebuffer_base_shader = load_shader("framebuffer_base")
 
 
 # VAO and VBO
 VAO = glGenVertexArrays(3)
 VBO = glGenBuffers(3)
 EBO = glGenBuffers(1)
+
+def add_cube():
+    vao = glGenVertexArrays(1)
+    vbo = glGenBuffers(1)
+    ebo = glGenBuffers(1)
+
+    glBindVertexArray(vao)
+    # cube Vertex Buffer Object
+    glBindBuffer(GL_ARRAY_BUFFER, vbo)
+    glBufferData(GL_ARRAY_BUFFER, cube_buffer.nbytes, cube_buffer, GL_STATIC_DRAW)
+
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO)
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, cube_indices.nbytes, cube_indices, GL_STATIC_DRAW)
+
+    # cube vertices
+    glEnableVertexAttribArray(0)
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, cube_buffer.itemsize * 8, ctypes.c_void_p(0))
+    # cube textures
+    glEnableVertexAttribArray(1)
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, cube_buffer.itemsize * 8, ctypes.c_void_p(12))
+    # cube normals
+    glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, cube_buffer.itemsize * 8, ctypes.c_void_p(20))
+    glEnableVertexAttribArray(2)
+    pass
+
+def add_plane():
+    pass
+
+def add_screenquad():
+    pass
 
 # cube VAO
 glBindVertexArray(VAO[0])
@@ -152,11 +147,13 @@ glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, floor_buffer.itemsize * 8, ctype
 glEnableVertexAttribArray(2)
 
 
-textures = glGenTextures(4)
+textures = glGenTextures(5)
 load_texture_pygame("meshes/cube.jpg", textures[0])
 load_texture_pygame("meshes/monkey.jpg", textures[1])
 load_texture_pygame("meshes/floor.jpg", textures[2])
 load_texture_pygame("textures/grass.png", textures[3], TEXTURE_WRAP.GL_CLAMP_TO_EDGE)
+
+framebuffer, frametexture = generate_framebuffer()
 
 #settings
 glEnable(GL_DEPTH_TEST)
@@ -173,8 +170,6 @@ glEnable(GL_CULL_FACE)
 
 ###
 
-
-glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
 
 cube_pos =  glm.translate(glm.mat4(1.0), [6, 4, 0])
 monkey_pos =  glm.translate(glm.mat4(1.0), [-4, 4, -4])
@@ -224,15 +219,12 @@ while running:
 
     # to been able to look around 360 degrees, still not perfect
     if mouse_pos[0] <= 0:
-        pygame.mouse.set_pos((1279, mouse_pos[1]))
-    elif mouse_pos[0] >= 1279:
+        pygame.mouse.set_pos((WIDTH-1, mouse_pos[1]))
+    elif mouse_pos[0] >= WIDTH-1:
         pygame.mouse.set_pos((0, mouse_pos[1]))
 
         
     ct = pygame.time.get_ticks() / 1000
-
-    glClearColor(0, 0.1, 0.1, 1)
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT)
 
     view = cam.get_view_matrix()
 
@@ -245,10 +237,10 @@ while running:
 
 
     # ############################## first pass
+    glEnable(GL_DEPTH_TEST); 
     glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
-    glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); # we're not using the stencil buffer now
-    glEnable(GL_DEPTH_TEST);
+    glClearColor(0.1, 0.1, 0.1, 1.0);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
 
     # # draw the monkey
     # glBindVertexArray(VAO[1])
@@ -262,6 +254,8 @@ while running:
     glBindTexture(GL_TEXTURE_2D, textures[2])
     glUniformMatrix4fv(model_loc, 1, GL_FALSE, glm.value_ptr(floor_pos))
     glDrawArrays(GL_TRIANGLES, 0, len(floor_indices))
+    glBindVertexArray(0);
+
 
     
     # # draw the cube
@@ -294,25 +288,26 @@ while running:
     # glStencilFunc(GL_ALWAYS, 0, 0xFF)
     # glEnable(GL_DEPTH_TEST) 
     
-    #draw grass
-    glUseProgram(texture_shader)
-    glBindVertexArray(VAO[2])
-    glBindTexture(GL_TEXTURE_2D, textures[3])
-    for t in range(5):
-        grass_pos2 = glm.translate(grass_pos, [0,t*-15,0])
-        glUniformMatrix4fv(model_loc, 1, GL_FALSE, glm.value_ptr(grass_pos2))
-        glDrawArrays(GL_TRIANGLES, 0, len(floor_indices))
+    # #draw grass
+    # glUseProgram(texture_shader)
+    # glBindVertexArray(VAO[2])
+    # glBindTexture(GL_TEXTURE_2D, textures[3])
+    # for t in range(5):
+    #     grass_pos2 = glm.translate(grass_pos, [0,t*-15,0])
+    #     glUniformMatrix4fv(model_loc, 1, GL_FALSE, glm.value_ptr(grass_pos2))
+    #     glDrawArrays(GL_TRIANGLES, 0, len(floor_indices))
 
 
     #################### second pass
     glBindFramebuffer(GL_FRAMEBUFFER, 0) # back to default
-    glClearColor(1.0f, 1.0f, 1.0f, 1.0f)
+    glDisable(GL_DEPTH_TEST)
+
+    glClearColor(1.0, 1.0, 1.0, 1.0)
     glClear(GL_COLOR_BUFFER_BIT)
     
-    screenShader.use()
-    glBindVertexArray(quadVAO)
-    glDisable(GL_DEPTH_TEST)
-    glBindTexture(GL_TEXTURE_2D, textureColorbuffer)
+    glUseProgram(framebuffer_base_shader)
+    glBindVertexArray(VAO[2])
+    glBindTexture(GL_TEXTURE_2D, frametexture)
     glDrawArrays(GL_TRIANGLES, 0, 6)
     
 
