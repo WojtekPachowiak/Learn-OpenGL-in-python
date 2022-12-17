@@ -222,15 +222,7 @@ while running:
         
     ct = pygame.time.get_ticks() / 1000
 
-    view = cam.get_view_matrix()
 
-    texture_shader.use()
-    texture_shader.set_mat4fv("view", glm.value_ptr(view))
-    texture_shader.set_mat4fv("projection", glm.value_ptr(projection))
-
-    outline_shader.use()
-    outline_shader.set_mat4fv("view", glm.value_ptr(view))
-    outline_shader.set_mat4fv("projection", glm.value_ptr(projection))
 
 
 
@@ -246,15 +238,38 @@ while running:
     # glUniformMatrix4fv(model_loc, 1, GL_FALSE, monkey_pos)
     # glDrawArrays(GL_TRIANGLES, 0, len(monkey_indices))
 
+    #camera turn around
+    cam.jaw += 180
+    cam.process_mouse_movement(0,0,False)
+    view = cam.get_view_matrix()
+    cam.jaw -= 180
+    cam.process_mouse_movement(0,0,True)
+
+    #view and projection setting
+    texture_shader.use()
+    texture_shader.set_mat4fv("view", glm.value_ptr(view))
+    texture_shader.set_mat4fv("projection", glm.value_ptr(projection))
+    outline_shader.use()
+    outline_shader.set_mat4fv("view", glm.value_ptr(view))
+    outline_shader.set_mat4fv("projection", glm.value_ptr(projection))
+
+
     # draw the floor
     texture_shader.use()
     glBindVertexArray(floor_vao)
     glBindTexture(GL_TEXTURE_2D, textures[2])
     texture_shader.set_mat4fv("model",glm.value_ptr(floor_pos))
     glDrawArrays(GL_TRIANGLES, 0, len(floor_indices))
-    glBindVertexArray(0);
+    glBindVertexArray(0)
 
 
+    # #draw mirror
+    # texture_shader.use()
+    # glBindVertexArray(floor_vao)
+    # glBindTexture(GL_TEXTURE_2D,frametexture)
+    # texture_shader.set_mat4fv("model",glm.value_ptr(grass_pos))
+    # glDrawArrays(GL_TRIANGLES, 0, len(floor_indices))
+    # glBindVertexArray(0);
     
     # # draw the cube
     # glStencilFunc(GL_ALWAYS, 1, 0xFF)
@@ -303,7 +318,26 @@ while running:
     glClearColor(1.0, 0.0, 1.0, 1.0)
     glClear(GL_COLOR_BUFFER_BIT)
     
+
+    #set view for mirror view
+    view = cam.get_view_matrix()
+    texture_shader.set_mat4fv("view", glm.value_ptr(view))
+
+
+    # draw the floor once again
+    texture_shader.use()
+    glBindVertexArray(floor_vao)
+    glBindTexture(GL_TEXTURE_2D, textures[2])
+    texture_shader.set_mat4fv("model",glm.value_ptr(floor_pos))
+    glDrawArrays(GL_TRIANGLES, 0, len(floor_indices))
+    glBindVertexArray(0)
+
+
+    #draw screenquad
     framebuffer_base_shader.use()
+    frame_model =  glm.translate(glm.scale(glm.mat4(1.0), glm.vec3(0.4,0.4,0)), [0,2,0])
+
+    framebuffer_base_shader.set_mat4fv("model",glm.value_ptr(frame_model) )
     glBindVertexArray(screenquad_vao)
     glBindTexture(GL_TEXTURE_2D, frametexture)
     glDrawArrays(GL_TRIANGLES, 0, 6)
