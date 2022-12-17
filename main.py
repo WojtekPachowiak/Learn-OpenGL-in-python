@@ -107,7 +107,7 @@ def add_screenquad():
         -1.0,  1.0,  0.0, 1.0,
          1.0, -1.0,  1.0, 0.0,
          1.0,  1.0,  1.0, 1.0
-    ])
+    ],dtype=np.float32)
     vao = glGenVertexArrays(1)
     vbo = glGenBuffers(1)
     glBindVertexArray(vao)
@@ -140,6 +140,7 @@ def add_screenquad():
 
 
 floor_vao, floor_indices = add_plane()
+screenquad_vao = add_screenquad()
 
 
 textures = glGenTextures(5)
@@ -180,13 +181,12 @@ texture_shader.set_mat4fv("projection", glm.value_ptr(projection))
 model_loc = glGetUniformLocation(texture_shader.program, "model")
 proj_loc = glGetUniformLocation(texture_shader.program, "projection")
 view_loc = glGetUniformLocation(texture_shader.program, "view")
-# glUniformMatrix4fv(proj_loc, 1, GL_FALSE, glm.value_ptr(projection))
 
-glUseProgram(outline_shader.program)
+outline_shader.use()
+outline_shader.set_mat4fv("projection", glm.value_ptr(projection))
 omodel_loc = glGetUniformLocation(outline_shader.program, "model")
 oproj_loc = glGetUniformLocation(outline_shader.program, "projection")
 oview_loc = glGetUniformLocation(outline_shader.program, "view")
-glUniformMatrix4fv(oproj_loc, 1, GL_FALSE, glm.value_ptr(projection))
 
 running = True
 
@@ -196,7 +196,6 @@ while running:
             running = False
         elif  event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
             running = False
-
         if event.type == pygame.VIDEORESIZE:
             glViewport(0, 0, event.w, event.h)
             projection = glm.perspective(45, event.w / event.h, 0.1, 100)
@@ -225,17 +224,19 @@ while running:
 
     view = cam.get_view_matrix()
 
-    glUseProgram(texture_shader.program)
-    glUniformMatrix4fv(view_loc, 1, GL_FALSE, glm.value_ptr(view))
-    glUniformMatrix4fv(proj_loc, 1, GL_FALSE, glm.value_ptr(projection))
-    glUseProgram(outline_shader.program)
-    glUniformMatrix4fv(oview_loc, 1, GL_FALSE, glm.value_ptr(view))
-    glUniformMatrix4fv(oproj_loc, 1, GL_FALSE, glm.value_ptr(projection))
+    texture_shader.use()
+    texture_shader.set_mat4fv("view", glm.value_ptr(view))
+    texture_shader.set_mat4fv("projection", glm.value_ptr(projection))
+
+    outline_shader.use()
+    outline_shader.set_mat4fv("view", glm.value_ptr(view))
+    outline_shader.set_mat4fv("projection", glm.value_ptr(projection))
+
 
 
     # ############################## first pass
     glEnable(GL_DEPTH_TEST); 
-    # glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
+    glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
     glClearColor(0.1, 0.1, 0.1, 1.0);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
 
@@ -246,10 +247,10 @@ while running:
     # glDrawArrays(GL_TRIANGLES, 0, len(monkey_indices))
 
     # draw the floor
-    glUseProgram(texture_shader.program)
+    texture_shader.use()
     glBindVertexArray(floor_vao)
     glBindTexture(GL_TEXTURE_2D, textures[2])
-    glUniformMatrix4fv(model_loc, 1, GL_FALSE, glm.value_ptr(floor_pos))
+    texture_shader.set_mat4fv("model",glm.value_ptr(floor_pos))
     glDrawArrays(GL_TRIANGLES, 0, len(floor_indices))
     glBindVertexArray(0);
 
@@ -295,17 +296,17 @@ while running:
     #     glDrawArrays(GL_TRIANGLES, 0, len(floor_indices))
 
 
-    # #################### second pass
-    # glBindFramebuffer(GL_FRAMEBUFFER, 0) # back to default
-    # glDisable(GL_DEPTH_TEST)
+    #################### second pass
+    glBindFramebuffer(GL_FRAMEBUFFER, 0) # back to default
+    glDisable(GL_DEPTH_TEST)
 
-    # glClearColor(1.0, 1.0, 1.0, 1.0)
-    # glClear(GL_COLOR_BUFFER_BIT)
+    glClearColor(1.0, 0.0, 1.0, 1.0)
+    glClear(GL_COLOR_BUFFER_BIT)
     
-    # glUseProgram(framebuffer_base_shader)
-    # glBindVertexArray(VAO[2])
-    # glBindTexture(GL_TEXTURE_2D, frametexture)
-    # glDrawArrays(GL_TRIANGLES, 0, 6)
+    framebuffer_base_shader.use()
+    glBindVertexArray(screenquad_vao)
+    glBindTexture(GL_TEXTURE_2D, frametexture)
+    glDrawArrays(GL_TRIANGLES, 0, 6)
     
 
 
