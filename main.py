@@ -4,7 +4,7 @@ os.environ['SDL_VIDEO_WINDOW_POS'] = '400,200'
 import pygame
 from OpenGL.GL import *
 from OpenGL.GL.shaders import compileProgram, compileShader
-from TextureLoader import load_texture_pygame, TEXTURE_WRAP, generate_framebuffer
+from TextureLoader import load_texture_pygame, TEXTURE_WRAP, generate_framebuffer, load_cubemap
 from ObjLoader import ObjLoader
 import glm
 from camera import Camera
@@ -48,7 +48,7 @@ pygame.event.set_grab(True)
 outline_shader = Shader("solid_color")
 texture_shader = Shader("texture")
 framebuffer_base_shader = Shader("framebuffer_base")
-
+skybox_shader = Shader("skybox_cubemap")
 
 def add_cube():
     cube_indices, cube_buffer = ObjLoader.load_model("meshes/cube.obj", False)
@@ -120,6 +120,61 @@ def add_screenquad():
     glBindVertexArray(0)
     return vao
 
+def add_skybox():
+    vertices = np.array([
+            # positions          
+            -1.0,  1.0, -1.0,
+            -1.0, -1.0, -1.0,
+            1.0, -1.0, -1.0,
+            1.0, -1.0, -1.0,
+            1.0,  1.0, -1.0,
+            -1.0,  1.0, -1.0,
+
+            -1.0, -1.0,  1.0,
+            -1.0, -1.0, -1.0,
+            -1.0,  1.0, -1.0,
+            -1.0,  1.0, -1.0,
+            -1.0,  1.0,  1.0,
+            -1.0, -1.0,  1.0,
+
+            1.0, -1.0, -1.0,
+            1.0, -1.0,  1.0,
+            1.0,  1.0,  1.0,
+            1.0,  1.0,  1.0,
+            1.0,  1.0, -1.0,
+            1.0, -1.0, -1.0,
+
+            -1.0, -1.0,  1.0,
+            -1.0,  1.0,  1.0,
+            1.0,  1.0,  1.0,
+            1.0,  1.0,  1.0,
+            1.0, -1.0,  1.0,
+            -1.0, -1.0,  1.0,
+
+            -1.0,  1.0, -1.0,
+            1.0,  1.0, -1.0,
+            1.0,  1.0,  1.0,
+            1.0,  1.0,  1.0,
+            -1.0,  1.0,  1.0,
+            -1.0,  1.0, -1.0,
+
+            -1.0, -1.0, -1.0,
+            -1.0, -1.0,  1.0,
+            1.0, -1.0, -1.0,
+            1.0, -1.0, -1.0,
+            -1.0, -1.0,  1.0,
+            1.0, -1.0,  1.0
+    ],dtype=np.float32)
+    vao = glGenVertexArrays(1)
+    vbo = glGenBuffers(1)
+    glBindVertexArray(vao)
+    glBindBuffer(GL_ARRAY_BUFFER, vbo)
+    glBufferData(GL_ARRAY_BUFFER, vertices.nbytes, vertices, GL_STATIC_DRAW)
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * vertices.itemsize, ctypes.c_void_p(0));
+    glBindVertexArray(0)
+    return vao
+
 # def add_monkey():
 #     monkey_indices, monkey_buffer = ObjLoader.load_model("meshes/monkey.obj")
 #     # monkey VAO
@@ -141,6 +196,7 @@ def add_screenquad():
 
 floor_vao, floor_indices = add_plane()
 screenquad_vao = add_screenquad()
+skybox_vao = add_skybox()
 
 
 textures = glGenTextures(5)
@@ -149,6 +205,18 @@ load_texture_pygame("meshes/monkey.jpg", textures[1])
 load_texture_pygame("meshes/floor.jpg", textures[2])    
 load_texture_pygame("textures/grass.png", textures[3], TEXTURE_WRAP.GL_CLAMP_TO_EDGE)
 
+#cubemap
+faces_paths = [
+    "textures/skybox/right.jpg",
+    "textures/skybox/left.jpg",
+    "textures/skybox/top.jpg",
+    "textures/skybox/bottom.jpg",
+    "textures/skybox/front.jpg",
+    "textures/skybox/back.jpg"
+]
+cubemap_tex = load_cubemap(faces_paths);  
+
+#framebuffer
 framebuffer, frametexture = generate_framebuffer()
 
 def global_settings():
@@ -176,17 +244,8 @@ projection = glm.perspective(45, WIDTH / HEIGHT, 0.1, 100)
 
 
 
-texture_shader.use()
-texture_shader.set_mat4fv("projection", glm.value_ptr(projection))
-model_loc = glGetUniformLocation(texture_shader.program, "model")
-proj_loc = glGetUniformLocation(texture_shader.program, "projection")
-view_loc = glGetUniformLocation(texture_shader.program, "view")
 
-outline_shader.use()
-outline_shader.set_mat4fv("projection", glm.value_ptr(projection))
-omodel_loc = glGetUniformLocation(outline_shader.program, "model")
-oproj_loc = glGetUniformLocation(outline_shader.program, "projection")
-oview_loc = glGetUniformLocation(outline_shader.program, "view")
+
 
 running = True
 
@@ -226,24 +285,24 @@ while running:
 
 
 
-    # ############################## first pass
-    glEnable(GL_DEPTH_TEST); 
-    glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
-    glClearColor(0.1, 0.1, 0.1, 1.0);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
+    # # ############################## first pass
+    # glEnable(GL_DEPTH_TEST); 
+    # glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
+    # glClearColor(0.1, 0.1, 0.1, 1.0);
+    # glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
 
-    # # draw the monkey
-    # glBindVertexArray(VAO[1])
-    # glBindTexture(GL_TEXTURE_2D, textures[1])
-    # glUniformMatrix4fv(model_loc, 1, GL_FALSE, monkey_pos)
-    # glDrawArrays(GL_TRIANGLES, 0, len(monkey_indices))
+    # # # draw the monkey
+    # # glBindVertexArray(VAO[1])
+    # # glBindTexture(GL_TEXTURE_2D, textures[1])
+    # # glUniformMatrix4fv(model_loc, 1, GL_FALSE, monkey_pos)
+    # # glDrawArrays(GL_TRIANGLES, 0, len(monkey_indices))
 
-    #camera turn around
-    cam.jaw += 180
-    cam.process_mouse_movement(0,0,False)
+    # #camera turn around
+    # cam.jaw += 180
+    # cam.process_mouse_movement(0,0,False)
     view = cam.get_view_matrix()
-    cam.jaw -= 180
-    cam.process_mouse_movement(0,0,True)
+    # cam.jaw -= 180
+    # cam.process_mouse_movement(0,0,True)
 
     #view and projection setting
     texture_shader.use()
@@ -252,15 +311,17 @@ while running:
     outline_shader.use()
     outline_shader.set_mat4fv("view", glm.value_ptr(view))
     outline_shader.set_mat4fv("projection", glm.value_ptr(projection))
+    skybox_shader.use()
+    skybox_shader.set_mat4fv("projection", glm.value_ptr(projection))
 
 
-    # draw the floor
-    texture_shader.use()
-    glBindVertexArray(floor_vao)
-    glBindTexture(GL_TEXTURE_2D, textures[2])
-    texture_shader.set_mat4fv("model",glm.value_ptr(floor_pos))
-    glDrawArrays(GL_TRIANGLES, 0, len(floor_indices))
-    glBindVertexArray(0)
+    # # draw the floor
+    # texture_shader.use()
+    # glBindVertexArray(floor_vao)
+    # glBindTexture(GL_TEXTURE_2D, textures[2])
+    # texture_shader.set_mat4fv("model",glm.value_ptr(floor_pos))
+    # glDrawArrays(GL_TRIANGLES, 0, len(floor_indices))
+    # glBindVertexArray(0)
 
 
     # #draw mirror
@@ -313,15 +374,17 @@ while running:
 
     #################### second pass
     glBindFramebuffer(GL_FRAMEBUFFER, 0) # back to default
-    glDisable(GL_DEPTH_TEST)
+    # glDisable(GL_DEPTH_TEST)
 
     glClearColor(1.0, 0.0, 1.0, 1.0)
-    glClear(GL_COLOR_BUFFER_BIT)
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
     
 
-    #set view for mirror view
-    view = cam.get_view_matrix()
-    texture_shader.set_mat4fv("view", glm.value_ptr(view))
+    # #set view for mirror view
+    # view = cam.get_view_matrix()
+    # texture_shader.use()
+    # texture_shader.set_mat4fv("view", glm.value_ptr(view))
+
 
 
     # draw the floor once again
@@ -332,15 +395,26 @@ while running:
     glDrawArrays(GL_TRIANGLES, 0, len(floor_indices))
     glBindVertexArray(0)
 
+    #draw skybox
+    glDepthFunc(GL_LEQUAL);  # change depth function so depth test passes when values are equal to depth buffer's content
+    skybox_shader.use();
+    skybox_view = glm.mat4(glm.mat3(cam.get_view_matrix()));  
+    skybox_shader.set_mat4fv("view", glm.value_ptr(skybox_view))
+    glBindVertexArray(skybox_vao);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, cubemap_tex);
+    glDrawArrays(GL_TRIANGLES, 0, 36);
+    glBindVertexArray(0);
+    glDepthFunc(GL_LESS); # set depth function back to default
 
-    #draw screenquad
-    framebuffer_base_shader.use()
-    frame_model =  glm.translate(glm.scale(glm.mat4(1.0), glm.vec3(0.4,0.4,0)), [0,2,0])
 
-    framebuffer_base_shader.set_mat4fv("model",glm.value_ptr(frame_model) )
-    glBindVertexArray(screenquad_vao)
-    glBindTexture(GL_TEXTURE_2D, frametexture)
-    glDrawArrays(GL_TRIANGLES, 0, 6)
+    # #draw screenquad
+    # framebuffer_base_shader.use()
+    # frame_model =  glm.translate(glm.scale(glm.mat4(1.0), glm.vec3(0.4,0.4,0)), [0,2,0])
+
+    # framebuffer_base_shader.set_mat4fv("model",glm.value_ptr(frame_model) )
+    # glBindVertexArray(screenquad_vao)
+    # glBindTexture(GL_TEXTURE_2D, frametexture)
+    # glDrawArrays(GL_TRIANGLES, 0, 6)
     
 
 

@@ -8,6 +8,8 @@ from OpenGL.GL import *
 from PIL import Image
 from enum import Enum
 
+import pygame as pg
+
 # # for use with GLFW
 # def load_texture(path, texture):
 #     glBindTexture(GL_TEXTURE_2D, texture)
@@ -32,7 +34,6 @@ class TEXTURE_WRAP(Enum):
 
 # for use with pygame
 def load_texture_pygame(path, texture, param: TEXTURE_WRAP = TEXTURE_WRAP.GL_REPEAT):
-    import pygame
     glBindTexture(GL_TEXTURE_2D, texture)
     # Set the texture wrapping parameters
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, param.value)
@@ -41,10 +42,10 @@ def load_texture_pygame(path, texture, param: TEXTURE_WRAP = TEXTURE_WRAP.GL_REP
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
     # load image
-    image = pygame.image.load(path)
-    image = pygame.transform.flip(image, False, True)
+    image = pg.image.load(path)
+    image = pg.transform.flip(image, False, True)
     image_width, image_height = image.get_rect().size
-    img_data = pygame.image.tostring(image, "RGBA")
+    img_data = pg.image.tostring(image, "RGBA")
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image_width, image_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, img_data)
     return texture
 
@@ -75,3 +76,25 @@ def generate_framebuffer():
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
     return framebuffer, textureColorbuffer
+
+
+
+def load_cubemap(faces_paths: list[str]):
+    texture_id = glGenTextures(1);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, texture_id);
+
+    for i in range(len(faces_paths)):
+        image = pg.image.load(faces_paths[i])
+        # image = pg.transform.flip(image, False, True)
+        width, height = image.get_rect().size
+        img_data = pg.image.tostring(image, "RGB")
+        glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, img_data)
+        
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+
+    return texture_id;
+
