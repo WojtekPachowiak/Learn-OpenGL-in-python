@@ -1,6 +1,6 @@
 from math import sin, cos, radians
 import glm
-
+from constants import MAX_PITCH
 class Camera:
     def __init__(self):
         self.camera_pos = glm.vec3([0.0, 4.0, 3.0])
@@ -24,10 +24,10 @@ class Camera:
         self.pitch += yoffset
 
         if constrain_pitch:
-            if self.pitch > 45:
-                self.pitch = 45
-            if self.pitch < -45:
-                self.pitch = -45
+            if self.pitch > MAX_PITCH:
+                self.pitch = MAX_PITCH
+            if self.pitch < -MAX_PITCH:
+                self.pitch = -MAX_PITCH
 
         self.update_camera_vectors()
 

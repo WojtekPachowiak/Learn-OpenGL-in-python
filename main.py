@@ -49,28 +49,84 @@ outline_shader = Shader("solid_color")
 texture_shader = Shader("texture")
 framebuffer_base_shader = Shader("framebuffer_base")
 skybox_shader = Shader("skybox_cubemap")
+reflective_shader = Shader("reflective_refractive")
+
 
 def add_cube():
-    cube_indices, cube_buffer = ObjLoader.load_model("meshes/cube.obj", False)
-    vao = glGenVertexArrays(1)
-    vbo = glGenBuffers(1)
-    ebo = glGenBuffers(1)
-    glBindVertexArray(vao)
-    glBindBuffer(GL_ARRAY_BUFFER, vbo)
-    glBufferData(GL_ARRAY_BUFFER, cube_buffer.nbytes, cube_buffer, GL_STATIC_DRAW)
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo)
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, cube_indices.nbytes, cube_indices, GL_STATIC_DRAW)
-    # vertices
-    glEnableVertexAttribArray(0)
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, cube_buffer.itemsize * 8, ctypes.c_void_p(0))
-    # textures
-    glEnableVertexAttribArray(1)
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, cube_buffer.itemsize * 8, ctypes.c_void_p(12))
-    # normals
-    glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, cube_buffer.itemsize * 8, ctypes.c_void_p(20))
-    glEnableVertexAttribArray(2)
-    glBindVertexArray(0)
-    return vao, cube_indices
+    vertices = np.array([
+        # positions          # normals
+        -0.5, -0.5, -0.5,  0.0,  0.0, -1.0,
+         0.5, -0.5, -0.5,  0.0,  0.0, -1.0,
+         0.5,  0.5, -0.5,  0.0,  0.0, -1.0,
+         0.5,  0.5, -0.5,  0.0,  0.0, -1.0,
+        -0.5,  0.5, -0.5,  0.0,  0.0, -1.0,
+        -0.5, -0.5, -0.5,  0.0,  0.0, -1.0,
+
+        -0.5, -0.5,  0.5,  0.0,  0.0, 1.0,
+         0.5, -0.5,  0.5,  0.0,  0.0, 1.0,
+         0.5,  0.5,  0.5,  0.0,  0.0, 1.0,
+         0.5,  0.5,  0.5,  0.0,  0.0, 1.0,
+        -0.5,  0.5,  0.5,  0.0,  0.0, 1.0,
+        -0.5, -0.5,  0.5,  0.0,  0.0, 1.0,
+
+        -0.5,  0.5,  0.5, -1.0,  0.0,  0.0,
+        -0.5,  0.5, -0.5, -1.0,  0.0,  0.0,
+        -0.5, -0.5, -0.5, -1.0,  0.0,  0.0,
+        -0.5, -0.5, -0.5, -1.0,  0.0,  0.0,
+        -0.5, -0.5,  0.5, -1.0,  0.0,  0.0,
+        -0.5,  0.5,  0.5, -1.0,  0.0,  0.0,
+
+         0.5,  0.5,  0.5,  1.0,  0.0,  0.0,
+         0.5,  0.5, -0.5,  1.0,  0.0,  0.0,
+         0.5, -0.5, -0.5,  1.0,  0.0,  0.0,
+         0.5, -0.5, -0.5,  1.0,  0.0,  0.0,
+         0.5, -0.5,  0.5,  1.0,  0.0,  0.0,
+         0.5,  0.5,  0.5,  1.0,  0.0,  0.0,
+
+        -0.5, -0.5, -0.5,  0.0, -1.0,  0.0,
+         0.5, -0.5, -0.5,  0.0, -1.0,  0.0,
+         0.5, -0.5,  0.5,  0.0, -1.0,  0.0,
+         0.5, -0.5,  0.5,  0.0, -1.0,  0.0,
+        -0.5, -0.5,  0.5,  0.0, -1.0,  0.0,
+        -0.5, -0.5, -0.5,  0.0, -1.0,  0.0,
+
+        -0.5,  0.5, -0.5,  0.0,  1.0,  0.0,
+         0.5,  0.5, -0.5,  0.0,  1.0,  0.0,
+         0.5,  0.5,  0.5,  0.0,  1.0,  0.0,
+         0.5,  0.5,  0.5,  0.0,  1.0,  0.0,
+        -0.5,  0.5,  0.5,  0.0,  1.0,  0.0,
+        -0.5,  0.5, -0.5,  0.0,  1.0,  0.0
+    ], dtype=np.float32)
+    vao = glGenVertexArrays(1);
+    vbo = glGenBuffers(1);
+    glBindVertexArray(vao);
+    glBindBuffer(GL_ARRAY_BUFFER, vbo);
+    glBufferData(GL_ARRAY_BUFFER, vertices.nbytes, vertices, GL_STATIC_DRAW);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * 4, ctypes.c_void_p(0));
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * 4, ctypes.c_void_p(12));
+    return vao
+    # cube_indices, cube_buffer = ObjLoader.load_model("meshes/cube.obj", False)
+    # vao = glGenVertexArrays(1)
+    # vbo = glGenBuffers(1)
+    # ebo = glGenBuffers(1)
+    # glBindVertexArray(vao)
+    # glBindBuffer(GL_ARRAY_BUFFER, vbo)
+    # glBufferData(GL_ARRAY_BUFFER, cube_buffer.nbytes, cube_buffer, GL_STATIC_DRAW)
+    # glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo)
+    # glBufferData(GL_ELEMENT_ARRAY_BUFFER, cube_indices.nbytes, cube_indices, GL_STATIC_DRAW)
+    # # vertices
+    # glEnableVertexAttribArray(0)
+    # glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, cube_buffer.itemsize * 8, ctypes.c_void_p(0))
+    # # textures
+    # glEnableVertexAttribArray(1)
+    # glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, cube_buffer.itemsize * 8, ctypes.c_void_p(12))
+    # # normals
+    # glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, cube_buffer.itemsize * 8, ctypes.c_void_p(20))
+    # glEnableVertexAttribArray(2)
+    # glBindVertexArray(0)
+    # return vao, cube_indices
 
 def add_plane():
     plane_indices, plane_buffer = ObjLoader.load_model("meshes/floor.obj")
@@ -124,7 +180,7 @@ def add_skybox():
     vertices = np.array([
             # positions          
             -1.0,  1.0, -1.0,
-            -1.0, -1.0, -1.0,
+            -1.0, -1.0, -   1.0,
             1.0, -1.0, -1.0,
             1.0, -1.0, -1.0,
             1.0,  1.0, -1.0,
@@ -197,6 +253,7 @@ def add_skybox():
 floor_vao, floor_indices = add_plane()
 screenquad_vao = add_screenquad()
 skybox_vao = add_skybox()
+cube_vao = add_cube()
 
 
 textures = glGenTextures(5)
@@ -230,12 +287,13 @@ def global_settings():
     glEnable(GL_BLEND);  
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);  
 
-    glEnable(GL_CULL_FACE)
+    # glEnable(GL_CULL_FACE)
+
 
 global_settings()
 
 
-cube_pos =  glm.translate(glm.mat4(1.0), [6, 4, 0])
+cube_pos =  glm.translate(glm.scale(glm.mat4(1.0),[5,5,5]), [6, 4, 0])
 monkey_pos =  glm.translate(glm.mat4(1.0), [-4, 4, -4])
 floor_pos =  glm.translate(glm.mat4(1.0), [0, 0, 0])
 grass_pos = glm.translate(glm.rotate(glm.scale(glm.mat4(1.0), glm.vec3(0.2,0.2,0.2)), glm.radians(90), [1,0,0] ), [0,15,-30]) 
@@ -270,13 +328,14 @@ while running:
 
 
     mouse_pos = pygame.mouse.get_pos()
-    mouse_look(mouse_pos[0], mouse_pos[1])
-
+    # mouse_look(mouse_pos[0], mouse_pos[1])
+    xoffset, yoffset = pygame.mouse.get_rel()
+    cam.process_mouse_movement(xoffset, -yoffset)
     # to been able to look around 360 degrees, still not perfect
-    if mouse_pos[0] <= 0:
-        pygame.mouse.set_pos((WIDTH-1, mouse_pos[1]))
-    elif mouse_pos[0] >= WIDTH-1:
-        pygame.mouse.set_pos((0, mouse_pos[1]))
+    # if mouse_pos[0] <= 0:
+    #     pygame.mouse.set_pos((WIDTH-1, mouse_pos[1]))
+    # elif mouse_pos[0] >= WIDTH-1:
+    #     pygame.mouse.set_pos((0, mouse_pos[1]))
 
         
     ct = pygame.time.get_ticks() / 1000
@@ -313,7 +372,9 @@ while running:
     outline_shader.set_mat4fv("projection", glm.value_ptr(projection))
     skybox_shader.use()
     skybox_shader.set_mat4fv("projection", glm.value_ptr(projection))
-
+    reflective_shader.use()
+    reflective_shader.set_mat4fv("view", glm.value_ptr(view))
+    reflective_shader.set_mat4fv("projection", glm.value_ptr(projection))
 
     # # draw the floor
     # texture_shader.use()
@@ -388,12 +449,21 @@ while running:
 
 
     # draw the floor once again
-    texture_shader.use()
-    glBindVertexArray(floor_vao)
-    glBindTexture(GL_TEXTURE_2D, textures[2])
-    texture_shader.set_mat4fv("model",glm.value_ptr(floor_pos))
-    glDrawArrays(GL_TRIANGLES, 0, len(floor_indices))
-    glBindVertexArray(0)
+    # texture_shader.use()
+    # glBindVertexArray(floor_vao)
+    # glBindTexture(GL_TEXTURE_2D, textures[2])
+    # texture_shader.set_mat4fv("model",glm.value_ptr(floor_pos))
+    # glDrawArrays(GL_TRIANGLES, 0, len(floor_indices))
+    # glBindVertexArray(0)
+
+    # draw the cube
+    reflective_shader.use()
+    glBindVertexArray(cube_vao)
+    # glBindTexture(GL_TEXTURE_CUBE_MAP, cubemap_tex);
+    reflective_shader.set_mat4fv("model", glm.value_ptr(cube_pos))
+    reflective_shader.set_vec3("cameraPos", glm.value_ptr(cam.camera_pos))
+    glDrawArrays(GL_TRIANGLES, 0, 36);
+    
 
     #draw skybox
     glDepthFunc(GL_LEQUAL);  # change depth function so depth test passes when values are equal to depth buffer's content

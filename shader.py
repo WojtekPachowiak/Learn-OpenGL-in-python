@@ -1,6 +1,6 @@
 from OpenGL.GL import *
 from OpenGL.GL.shaders import compileProgram, compileShader
-
+import glm
 
 class Shader:
     def __init__(self, name:str):
@@ -15,6 +15,10 @@ class Shader:
     def use(self):
         glUseProgram(self.program)
 
-    def set_mat4fv(self, uniform_name:str, value):
+    def set_mat4fv(self, uniform_name:str, value:glm.mat4):
         loc = glGetUniformLocation(self.program, uniform_name)
         glUniformMatrix4fv(loc, 1, GL_FALSE, value)
+
+    def set_vec3(self, uniform_name:str, value:glm.vec3):
+        loc = glGetUniformLocation(self.program, uniform_name)
+        glUniform3fv(loc, 1, value); 
