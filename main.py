@@ -50,6 +50,9 @@ texture_shader = Shader("texture")
 framebuffer_base_shader = Shader("framebuffer_base")
 skybox_shader = Shader("skybox_cubemap")
 reflective_shader = Shader("reflective_refractive")
+houses_shader = Shader("houses")
+explode_shader = Shader("explode")
+
 
 
 def add_cube():
@@ -231,29 +234,53 @@ def add_skybox():
     glBindVertexArray(0)
     return vao
 
-# def add_monkey():
-#     monkey_indices, monkey_buffer = ObjLoader.load_model("meshes/monkey.obj")
-#     # monkey VAO
-#     glBindVertexArray(VAO[1])
-#     # monkey Vertex Buffer Object
-#     glBindBuffer(GL_ARRAY_BUFFER, VBO[1])
-#     glBufferData(GL_ARRAY_BUFFER, monkey_buffer.nbytes, monkey_buffer, GL_STATIC_DRAW)
+def add_four_points():
+    vertices = np.array([
+    -0.5,  0.5, 1.0, 0.0, 0.0, # top-left
+     0.5,  0.5, 0.0, 1.0, 0.0, # top-right
+     0.5, -0.5, 0.0, 0.0, 1.0, # bottom-right
+    -0.5, -0.5, 1.0, 1.0, 0.0  # bottom-left
+    ], dtype=np.float32)
+    vao = glGenVertexArrays(1)
+    vbo = glGenBuffers(1)
+    glBindVertexArray(vao)
+    glBindBuffer(GL_ARRAY_BUFFER, vbo)
+    glBufferData(GL_ARRAY_BUFFER, vertices.nbytes, vertices, GL_STATIC_DRAW)
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 5 * vertices.itemsize, ctypes.c_void_p(0));
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 5 * vertices.itemsize, ctypes.c_void_p(8));
+    glBindVertexArray(0)
+    return vao
 
-#     # monkey vertices
-#     glEnableVertexAttribArray(0)
-#     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, monkey_buffer.itemsize * 8, ctypes.c_void_p(0))
-#     # monkey textures
-#     glEnableVertexAttribArray(1)
-#     glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, monkey_buffer.itemsize * 8, ctypes.c_void_p(12))
-#     # monkey normals
-#     glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, monkey_buffer.itemsize * 8, ctypes.c_void_p(20))
-#     glEnableVertexAttribArray(2)
+
+def add_monkey():
+    monkey_indices, monkey_buffer = ObjLoader.load_model("meshes/monkey.obj")
+    # monkey VAO
+    vao = glGenVertexArrays(1)
+    vbo = glGenBuffers(1)
+    glBindVertexArray(vao) 
+    # monkey Vertex Buffer Object
+    glBindBuffer(GL_ARRAY_BUFFER, vbo)
+    glBufferData(GL_ARRAY_BUFFER, monkey_buffer.nbytes, monkey_buffer, GL_STATIC_DRAW)
+    # monkey vertices
+    glEnableVertexAttribArray(0)
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, monkey_buffer.itemsize * 8, ctypes.c_void_p(0))
+    # monkey textures
+    glEnableVertexAttribArray(1)
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, monkey_buffer.itemsize * 8, ctypes.c_void_p(12))
+    # monkey normals
+    glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, monkey_buffer.itemsize * 8, ctypes.c_void_p(20))
+    glEnableVertexAttribArray(2)
+    return vao, monkey_indices
 
 
 floor_vao, floor_indices = add_plane()
 screenquad_vao = add_screenquad()
 skybox_vao = add_skybox()
 cube_vao = add_cube()
+four_points_vao = add_four_points()
+monkey_vao, monkey_indices = add_monkey()
 
 
 textures = glGenTextures(5)
@@ -350,11 +377,7 @@ while running:
     # glClearColor(0.1, 0.1, 0.1, 1.0);
     # glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
 
-    # # # draw the monkey
-    # # glBindVertexArray(VAO[1])
-    # # glBindTexture(GL_TEXTURE_2D, textures[1])
-    # # glUniformMatrix4fv(model_loc, 1, GL_FALSE, monkey_pos)
-    # # glDrawArrays(GL_TRIANGLES, 0, len(monkey_indices))
+
 
     # #camera turn around
     # cam.jaw += 180
@@ -375,6 +398,10 @@ while running:
     reflective_shader.use()
     reflective_shader.set_mat4fv("view", glm.value_ptr(view))
     reflective_shader.set_mat4fv("projection", glm.value_ptr(projection))
+    explode_shader.use()
+    explode_shader.set_mat4fv("view", glm.value_ptr(view))
+    explode_shader.set_mat4fv("projection", glm.value_ptr(projection))
+
 
     # # draw the floor
     # texture_shader.use()
@@ -437,8 +464,9 @@ while running:
     glBindFramebuffer(GL_FRAMEBUFFER, 0) # back to default
     # glDisable(GL_DEPTH_TEST)
 
-    glClearColor(1.0, 0.0, 1.0, 1.0)
+    glClearColor(0.0, 0.0, 0.0, 1.0)
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
+    
     
 
     # #set view for mirror view
@@ -449,32 +477,45 @@ while running:
 
 
     # draw the floor once again
-    # texture_shader.use()
-    # glBindVertexArray(floor_vao)
-    # glBindTexture(GL_TEXTURE_2D, textures[2])
-    # texture_shader.set_mat4fv("model",glm.value_ptr(floor_pos))
-    # glDrawArrays(GL_TRIANGLES, 0, len(floor_indices))
-    # glBindVertexArray(0)
+    texture_shader.use()
+    glBindVertexArray(floor_vao)
+    glBindTexture(GL_TEXTURE_2D, textures[2])
+    texture_shader.set_mat4fv("model",glm.value_ptr(floor_pos))
+    glDrawArrays(GL_TRIANGLES, 0, len(floor_indices))
+    glBindVertexArray(0)
 
     # draw the cube
-    reflective_shader.use()
-    glBindVertexArray(cube_vao)
-    # glBindTexture(GL_TEXTURE_CUBE_MAP, cubemap_tex);
-    reflective_shader.set_mat4fv("model", glm.value_ptr(cube_pos))
-    reflective_shader.set_vec3("cameraPos", glm.value_ptr(cam.camera_pos))
-    glDrawArrays(GL_TRIANGLES, 0, 36);
+    # reflective_shader.use()
+    # glBindVertexArray(cube_vao)
+    # # glBindTexture(GL_TEXTURE_CUBE_MAP, cubemap_tex);
+    # reflective_shader.set_mat4fv("model", glm.value_ptr(cube_pos))
+    # reflective_shader.set_vec3("cameraPos", glm.value_ptr(cam.camera_pos))
+    # glDrawArrays(GL_TRIANGLES, 0, 36);
+
+    # #draw four points
+    # houses_shader.use()
+    # glBindVertexArray(four_points_vao)
+    # glDrawArrays(GL_POINTS, 0, 4)
     
+    # draw the monkey
+    explode_shader.use()
+    explode_shader.set_float("time", ct);
+    glBindVertexArray(monkey_vao)
+    glBindTexture(GL_TEXTURE_2D, textures[1])
+    explode_shader.set_mat4fv("model", glm.value_ptr(monkey_pos))
+    glDrawArrays(GL_TRIANGLES, 0, len(monkey_indices))  
+
 
     #draw skybox
-    glDepthFunc(GL_LEQUAL);  # change depth function so depth test passes when values are equal to depth buffer's content
-    skybox_shader.use();
-    skybox_view = glm.mat4(glm.mat3(cam.get_view_matrix()));  
-    skybox_shader.set_mat4fv("view", glm.value_ptr(skybox_view))
-    glBindVertexArray(skybox_vao);
-    glBindTexture(GL_TEXTURE_CUBE_MAP, cubemap_tex);
-    glDrawArrays(GL_TRIANGLES, 0, 36);
-    glBindVertexArray(0);
-    glDepthFunc(GL_LESS); # set depth function back to default
+    # glDepthFunc(GL_LEQUAL);  # change depth function so depth test passes when values are equal to depth buffer's content
+    # skybox_shader.use();
+    # skybox_view = glm.mat4(glm.mat3(cam.get_view_matrix()));  
+    # skybox_shader.set_mat4fv("view", glm.value_ptr(skybox_view))
+    # glBindVertexArray(skybox_vao);
+    # glBindTexture(GL_TEXTURE_CUBE_MAP, cubemap_tex);
+    # glDrawArrays(GL_TRIANGLES, 0, 36);
+    # glBindVertexArray(0);
+    # glDepthFunc(GL_LESS); # set depth function back to default
 
 
     # #draw screenquad
