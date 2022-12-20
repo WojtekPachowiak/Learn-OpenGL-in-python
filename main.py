@@ -8,7 +8,7 @@ from TextureLoader import load_texture_pygame, TEXTURE_WRAP, generate_framebuffe
 from ObjLoader import ObjLoader
 import glm
 from camera import Camera
-from constants import WIDTH, HEIGHT
+from constants import WIDTH, HEIGHT, NEAR_CLIP, FAR_CLIP
 import numpy as np
 from shader import Shader
 
@@ -57,80 +57,80 @@ instanced_shader = Shader("instanced")
 
 
 def add_cube():
-    vertices = np.array([
-        # positions          # normals
-        -0.5, -0.5, -0.5,  0.0,  0.0, -1.0,
-         0.5, -0.5, -0.5,  0.0,  0.0, -1.0,
-         0.5,  0.5, -0.5,  0.0,  0.0, -1.0,
-         0.5,  0.5, -0.5,  0.0,  0.0, -1.0,
-        -0.5,  0.5, -0.5,  0.0,  0.0, -1.0,
-        -0.5, -0.5, -0.5,  0.0,  0.0, -1.0,
+    # vertices = np.array([
+    #     # positions          # normals
+    #     -0.5, -0.5, -0.5,  0.0,  0.0, -1.0,
+    #      0.5, -0.5, -0.5,  0.0,  0.0, -1.0,
+    #      0.5,  0.5, -0.5,  0.0,  0.0, -1.0,
+    #      0.5,  0.5, -0.5,  0.0,  0.0, -1.0,
+    #     -0.5,  0.5, -0.5,  0.0,  0.0, -1.0,
+    #     -0.5, -0.5, -0.5,  0.0,  0.0, -1.0,
 
-        -0.5, -0.5,  0.5,  0.0,  0.0, 1.0,
-         0.5, -0.5,  0.5,  0.0,  0.0, 1.0,
-         0.5,  0.5,  0.5,  0.0,  0.0, 1.0,
-         0.5,  0.5,  0.5,  0.0,  0.0, 1.0,
-        -0.5,  0.5,  0.5,  0.0,  0.0, 1.0,
-        -0.5, -0.5,  0.5,  0.0,  0.0, 1.0,
+    #     -0.5, -0.5,  0.5,  0.0,  0.0, 1.0,
+    #      0.5, -0.5,  0.5,  0.0,  0.0, 1.0,
+    #      0.5,  0.5,  0.5,  0.0,  0.0, 1.0,
+    #      0.5,  0.5,  0.5,  0.0,  0.0, 1.0,
+    #     -0.5,  0.5,  0.5,  0.0,  0.0, 1.0,
+    #     -0.5, -0.5,  0.5,  0.0,  0.0, 1.0,
 
-        -0.5,  0.5,  0.5, -1.0,  0.0,  0.0,
-        -0.5,  0.5, -0.5, -1.0,  0.0,  0.0,
-        -0.5, -0.5, -0.5, -1.0,  0.0,  0.0,
-        -0.5, -0.5, -0.5, -1.0,  0.0,  0.0,
-        -0.5, -0.5,  0.5, -1.0,  0.0,  0.0,
-        -0.5,  0.5,  0.5, -1.0,  0.0,  0.0,
+    #     -0.5,  0.5,  0.5, -1.0,  0.0,  0.0,
+    #     -0.5,  0.5, -0.5, -1.0,  0.0,  0.0,
+    #     -0.5, -0.5, -0.5, -1.0,  0.0,  0.0,
+    #     -0.5, -0.5, -0.5, -1.0,  0.0,  0.0,
+    #     -0.5, -0.5,  0.5, -1.0,  0.0,  0.0,
+    #     -0.5,  0.5,  0.5, -1.0,  0.0,  0.0,
 
-         0.5,  0.5,  0.5,  1.0,  0.0,  0.0,
-         0.5,  0.5, -0.5,  1.0,  0.0,  0.0,
-         0.5, -0.5, -0.5,  1.0,  0.0,  0.0,
-         0.5, -0.5, -0.5,  1.0,  0.0,  0.0,
-         0.5, -0.5,  0.5,  1.0,  0.0,  0.0,
-         0.5,  0.5,  0.5,  1.0,  0.0,  0.0,
+    #      0.5,  0.5,  0.5,  1.0,  0.0,  0.0,
+    #      0.5,  0.5, -0.5,  1.0,  0.0,  0.0,
+    #      0.5, -0.5, -0.5,  1.0,  0.0,  0.0,
+    #      0.5, -0.5, -0.5,  1.0,  0.0,  0.0,
+    #      0.5, -0.5,  0.5,  1.0,  0.0,  0.0,
+    #      0.5,  0.5,  0.5,  1.0,  0.0,  0.0,
 
-        -0.5, -0.5, -0.5,  0.0, -1.0,  0.0,
-         0.5, -0.5, -0.5,  0.0, -1.0,  0.0,
-         0.5, -0.5,  0.5,  0.0, -1.0,  0.0,
-         0.5, -0.5,  0.5,  0.0, -1.0,  0.0,
-        -0.5, -0.5,  0.5,  0.0, -1.0,  0.0,
-        -0.5, -0.5, -0.5,  0.0, -1.0,  0.0,
+    #     -0.5, -0.5, -0.5,  0.0, -1.0,  0.0,
+    #      0.5, -0.5, -0.5,  0.0, -1.0,  0.0,
+    #      0.5, -0.5,  0.5,  0.0, -1.0,  0.0,
+    #      0.5, -0.5,  0.5,  0.0, -1.0,  0.0,
+    #     -0.5, -0.5,  0.5,  0.0, -1.0,  0.0,
+    #     -0.5, -0.5, -0.5,  0.0, -1.0,  0.0,
 
-        -0.5,  0.5, -0.5,  0.0,  1.0,  0.0,
-         0.5,  0.5, -0.5,  0.0,  1.0,  0.0,
-         0.5,  0.5,  0.5,  0.0,  1.0,  0.0,
-         0.5,  0.5,  0.5,  0.0,  1.0,  0.0,
-        -0.5,  0.5,  0.5,  0.0,  1.0,  0.0,
-        -0.5,  0.5, -0.5,  0.0,  1.0,  0.0
-    ], dtype=np.float32)
-    vao = glGenVertexArrays(1);
-    vbo = glGenBuffers(1);
-    glBindVertexArray(vao);
-    glBindBuffer(GL_ARRAY_BUFFER, vbo);
-    glBufferData(GL_ARRAY_BUFFER, vertices.nbytes, vertices, GL_STATIC_DRAW);
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * 4, ctypes.c_void_p(0));
-    glEnableVertexAttribArray(1);
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * 4, ctypes.c_void_p(12));
-    return vao
-    # cube_indices, cube_buffer = ObjLoader.load_model("meshes/cube.obj", False)
-    # vao = glGenVertexArrays(1)
-    # vbo = glGenBuffers(1)
-    # ebo = glGenBuffers(1)
-    # glBindVertexArray(vao)
-    # glBindBuffer(GL_ARRAY_BUFFER, vbo)
-    # glBufferData(GL_ARRAY_BUFFER, cube_buffer.nbytes, cube_buffer, GL_STATIC_DRAW)
-    # glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo)
-    # glBufferData(GL_ELEMENT_ARRAY_BUFFER, cube_indices.nbytes, cube_indices, GL_STATIC_DRAW)
-    # # vertices
-    # glEnableVertexAttribArray(0)
-    # glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, cube_buffer.itemsize * 8, ctypes.c_void_p(0))
-    # # textures
-    # glEnableVertexAttribArray(1)
-    # glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, cube_buffer.itemsize * 8, ctypes.c_void_p(12))
-    # # normals
-    # glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, cube_buffer.itemsize * 8, ctypes.c_void_p(20))
-    # glEnableVertexAttribArray(2)
-    # glBindVertexArray(0)
-    # return vao, cube_indices
+    #     -0.5,  0.5, -0.5,  0.0,  1.0,  0.0,
+    #      0.5,  0.5, -0.5,  0.0,  1.0,  0.0,
+    #      0.5,  0.5,  0.5,  0.0,  1.0,  0.0,
+    #      0.5,  0.5,  0.5,  0.0,  1.0,  0.0,
+    #     -0.5,  0.5,  0.5,  0.0,  1.0,  0.0,
+    #     -0.5,  0.5, -0.5,  0.0,  1.0,  0.0
+    # ], dtype=np.float32)
+    # vao = glGenVertexArrays(1);
+    # vbo = glGenBuffers(1);
+    # glBindVertexArray(vao);
+    # glBindBuffer(GL_ARRAY_BUFFER, vbo);
+    # glBufferData(GL_ARRAY_BUFFER, vertices.nbytes, vertices, GL_STATIC_DRAW);
+    # glEnableVertexAttribArray(0);
+    # glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * 4, ctypes.c_void_p(0));
+    # glEnableVertexAttribArray(1);
+    # glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * 4, ctypes.c_void_p(12));
+    # return vao
+    cube_indices, cube_buffer = ObjLoader.load_model("meshes/cube.obj", False)
+    vao = glGenVertexArrays(1)
+    vbo = glGenBuffers(1)
+    ebo = glGenBuffers(1)
+    glBindVertexArray(vao)
+    glBindBuffer(GL_ARRAY_BUFFER, vbo)
+    glBufferData(GL_ARRAY_BUFFER, cube_buffer.nbytes, cube_buffer, GL_STATIC_DRAW)
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo)
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, cube_indices.nbytes, cube_indices, GL_STATIC_DRAW)
+    # vertices
+    glEnableVertexAttribArray(0)
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, cube_buffer.itemsize * 8, ctypes.c_void_p(0))
+    # textures
+    glEnableVertexAttribArray(1)
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, cube_buffer.itemsize * 8, ctypes.c_void_p(12))
+    # normals
+    glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, cube_buffer.itemsize * 8, ctypes.c_void_p(20))
+    glEnableVertexAttribArray(2)
+    glBindVertexArray(0)
+    return vao, cube_indices
 
 def add_plane():
     plane_indices, plane_buffer = ObjLoader.load_model("meshes/floor.obj")
@@ -319,7 +319,7 @@ def add_instanced_quad():
 floor_vao, floor_indices = add_plane()
 screenquad_vao = add_screenquad()
 skybox_vao = add_skybox()
-cube_vao = add_cube()
+cube_vao, cube_indices = add_cube()
 four_points_vao = add_four_points()
 monkey_vao, monkey_indices = add_monkey()
 instanced_vao = add_instanced_quad()
@@ -347,14 +347,14 @@ framebuffer, frametexture = generate_framebuffer()
 
 def global_settings():
     glEnable(GL_DEPTH_TEST)
-    glDepthFunc(GL_LESS)
+    # glDepthFunc(GL_LESS)
 
     # glEnable(GL_STENCIL_TEST);
     # glStencilFunc(GL_NOTEQUAL, 1, 0xFF);
     # glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);
 
-    glEnable(GL_BLEND);  
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);  
+    # glEnable(GL_BLEND);  
+    # glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);  
 
     # glEnable(GL_CULL_FACE)
 
@@ -367,10 +367,36 @@ monkey_pos =  glm.translate(glm.mat4(1.0), [-4, 4, -4])
 floor_pos =  glm.translate(glm.mat4(1.0), [0, 0, 0])
 grass_pos = glm.translate(glm.rotate(glm.scale(glm.mat4(1.0), glm.vec3(0.2,0.2,0.2)), glm.radians(90), [1,0,0] ), [0,15,-30]) 
 
-projection = glm.perspective(45, WIDTH / HEIGHT, 0.1, 100)
+projection = glm.perspective(45, WIDTH / HEIGHT, NEAR_CLIP, FAR_CLIP)
 
 
 
+amount = 1000;
+modelMatrices =[]
+radius = 50.0
+offset = 2.5
+for i in range(amount):
+    model = glm.mat4(1.0)
+    # 1. translation: displace along circle with 'radius' in range [-offset, offset]
+    angle = i / amount * 360.0;
+    displacement = np.random.randint(0, 2 * offset * 100) / 100.0 - offset;
+    x = np.sin(angle) * radius + displacement;
+    displacement = np.random.randint(0, 2 * offset * 100) / 100.0 - offset;
+    y = displacement * 0.4; # keep height of field smaller compared to width of x and z
+    displacement = np.random.randint(0, 2 * offset * 100) / 100.0 - offset;
+    z = np.cos(angle) * radius + displacement;
+    model = glm.translate(model, glm.vec3(x, y, z));
+
+    # 2. scale: scale between 0.05 and 0.25f
+    scale = np.random.randint(0, 20) / 100.0 + 0.05;
+    model = glm.scale(model, glm.vec3(scale));
+
+    # 3. rotation: add random rotation around a (semi)randomly picked rotation axis vector
+    rotAngle = np.random.randint(0, 360)
+    model = glm.rotate(model, rotAngle, glm.vec3(0.4, 0.6, 0.8));
+
+    # 4. now add to list of matrices
+    modelMatrices.append(model);
 
 
 
@@ -386,7 +412,7 @@ while running:
             running = False
         if event.type == pygame.VIDEORESIZE:
             glViewport(0, 0, event.w, event.h)
-            projection = glm.perspective(45, event.w / event.h, 0.1, 100)
+            projection = glm.perspective(45, event.w / event.h, NEAR_CLIP, FAR_CLIP)
     keys_pressed = pygame.key.get_pressed()
     if keys_pressed[pygame.K_a]:
         cam.process_keyboard("LEFT", 0.08)
@@ -514,7 +540,7 @@ while running:
     glBindFramebuffer(GL_FRAMEBUFFER, 0) # back to default
     # glDisable(GL_DEPTH_TEST)
 
-    glClearColor(0.0, 0.0, 0.0, 1.0)
+    glClearColor(0.0, 0.0, 1.0, 1.0)
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
     
     
@@ -524,6 +550,15 @@ while running:
     # texture_shader.use()
     # texture_shader.set_mat4fv("view", glm.value_ptr(view))
 
+    texture_shader.use()
+    glBindVertexArray(cube_vao)
+    glBindTexture(GL_TEXTURE_2D, textures[2])
+    texture_shader.set_vec4("color",np.array([1.,1.,0.,1.],dtype=np.float32))
+    # draw meteorites
+    for i in range(amount):
+        # draw the cube
+        texture_shader.set_mat4fv("model", glm.value_ptr(modelMatrices[i]));
+        glDrawElements(GL_TRIANGLES, len(cube_indices), GL_UNSIGNED_INT, None)
 
 
     # draw the floor once again
@@ -534,10 +569,12 @@ while running:
     glDrawArrays(GL_TRIANGLES, 0, len(floor_indices))
     glBindVertexArray(0)
 
-    #draw instanced quads
-    instanced_shader.use()
-    glBindVertexArray(instanced_vao);
-    glDrawArraysInstanced(GL_TRIANGLES, 0, 6, 100);  
+    # #draw instanced quads
+    # instanced_shader.use()
+    # glBindVertexArray(instanced_vao);
+    # glDrawArraysInstanced(GL_TRIANGLES, 0, 6, 100);  
+    
+
     
 
     # draw the cube
