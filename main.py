@@ -295,7 +295,24 @@ def add_instanced_quad():
     glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 5 * vertices.itemsize, ctypes.c_void_p(0));
     glEnableVertexAttribArray(1);
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 5 * vertices.itemsize, ctypes.c_void_p(8));
+
+
+    #preparing instanced_shader
+    x = np.linspace(-0.9, 0.9, 10)
+    translations = np.dstack(np.meshgrid(x,x)).reshape(-1,2).astype(np.float32)
+
+    instanceVBO = glGenBuffers(1);
+    glBindBuffer(GL_ARRAY_BUFFER, instanceVBO);
+    glBufferData(GL_ARRAY_BUFFER, translations.nbytes, translations, GL_STATIC_DRAW);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+    glEnableVertexAttribArray(2);
+    glBindBuffer(GL_ARRAY_BUFFER, instanceVBO);
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 2 * translations.itemsize, ctypes.c_void_p(0));
+    glBindBuffer(GL_ARRAY_BUFFER, 0);	
+    glVertexAttribDivisor(2, 1);  
     glBindVertexArray(0)
+
     return vao
 
 
@@ -353,13 +370,7 @@ grass_pos = glm.translate(glm.rotate(glm.scale(glm.mat4(1.0), glm.vec3(0.2,0.2,0
 projection = glm.perspective(45, WIDTH / HEIGHT, 0.1, 100)
 
 
-#preparing instanced_shader
-x = np.linspace(-0.9, 0.9, 10)
-translations = np.dstack(np.meshgrid(x,x)).reshape(-1,2)
-# translations.dtype = np.float32
-print(translations)
-instanced_shader.use()
-instanced_shader.set_vec2("offsets",translations, 100)
+
 
 
 
