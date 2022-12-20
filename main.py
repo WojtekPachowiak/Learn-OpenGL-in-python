@@ -52,7 +52,8 @@ skybox_shader = Shader("skybox_cubemap")
 reflective_shader = Shader("reflective_refractive")
 houses_shader = Shader("houses")
 explode_shader = Shader("explode")
-
+vis_normal_shader = Shader("visualize_normals")
+instanced_shader = Shader("instanced")
 
 
 def add_cube():
@@ -274,6 +275,29 @@ def add_monkey():
     glEnableVertexAttribArray(2)
     return vao, monkey_indices
 
+def add_instanced_quad():
+    vertices = np.array([
+    # positions     # colors
+    -0.05,  0.05,  1.0, 0.0, 0.0,
+     0.05, -0.05,  0.0, 1.0, 0.0,
+    -0.05, -0.05,  0.0, 0.0, 1.0,
+
+    -0.05,  0.05,  1.0, 0.0, 0.0,
+     0.05, -0.05,  0.0, 1.0, 0.0,   
+     0.05,  0.05,  0.0, 1.0, 1.0		    		
+    ],dtype=np.float32)
+    vao = glGenVertexArrays(1)
+    vbo = glGenBuffers(1)
+    glBindVertexArray(vao)
+    glBindBuffer(GL_ARRAY_BUFFER, vbo)
+    glBufferData(GL_ARRAY_BUFFER, vertices.nbytes, vertices, GL_STATIC_DRAW)
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 5 * vertices.itemsize, ctypes.c_void_p(0));
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 5 * vertices.itemsize, ctypes.c_void_p(8));
+    glBindVertexArray(0)
+    return vao
+
 
 floor_vao, floor_indices = add_plane()
 screenquad_vao = add_screenquad()
@@ -281,6 +305,7 @@ skybox_vao = add_skybox()
 cube_vao = add_cube()
 four_points_vao = add_four_points()
 monkey_vao, monkey_indices = add_monkey()
+instanced_vao = add_instanced_quad()
 
 
 textures = glGenTextures(5)
@@ -327,6 +352,14 @@ grass_pos = glm.translate(glm.rotate(glm.scale(glm.mat4(1.0), glm.vec3(0.2,0.2,0
 
 projection = glm.perspective(45, WIDTH / HEIGHT, 0.1, 100)
 
+
+#preparing instanced_shader
+x = np.linspace(-0.9, 0.9, 10)
+translations = np.dstack(np.meshgrid(x,x)).reshape(-1,2)
+# translations.dtype = np.float32
+print(translations)
+instanced_shader.use()
+instanced_shader.set_vec2("offsets",translations, 100)
 
 
 
@@ -401,6 +434,12 @@ while running:
     explode_shader.use()
     explode_shader.set_mat4fv("view", glm.value_ptr(view))
     explode_shader.set_mat4fv("projection", glm.value_ptr(projection))
+    vis_normal_shader.use()
+    vis_normal_shader.set_mat4fv("view", glm.value_ptr(view))
+    vis_normal_shader.set_mat4fv("projection", glm.value_ptr(projection))
+    # instanced_shader.use()
+    # instanced_shader.set_mat4fv("view", glm.value_ptr(view))
+    # instanced_shader.set_mat4fv("projection", glm.value_ptr(projection))
 
 
     # # draw the floor
@@ -484,6 +523,12 @@ while running:
     glDrawArrays(GL_TRIANGLES, 0, len(floor_indices))
     glBindVertexArray(0)
 
+    #draw instanced quads
+    instanced_shader.use()
+    glBindVertexArray(instanced_vao);
+    glDrawArraysInstanced(GL_TRIANGLES, 0, 6, 100);  
+    
+
     # draw the cube
     # reflective_shader.use()
     # glBindVertexArray(cube_vao)
@@ -498,12 +543,20 @@ while running:
     # glDrawArrays(GL_POINTS, 0, 4)
     
     # draw the monkey
-    explode_shader.use()
-    explode_shader.set_float("time", ct);
-    glBindVertexArray(monkey_vao)
-    glBindTexture(GL_TEXTURE_2D, textures[1])
-    explode_shader.set_mat4fv("model", glm.value_ptr(monkey_pos))
-    glDrawArrays(GL_TRIANGLES, 0, len(monkey_indices))  
+    # texture_shader.use()
+    # glBindVertexArray(monkey_vao)
+    # glBindTexture(GL_TEXTURE_2D, textures[1])
+    # texture_shader.set_mat4fv("model", glm.value_ptr(monkey_pos))
+    # glDrawArrays(GL_TRIANGLES, 0, len(monkey_indices)) 
+
+    # # draw the monkey normals
+    # vis_normal_shader.use()
+    # glBindVertexArray(monkey_vao)
+    # glBindTexture(GL_TEXTURE_2D, textures[1])
+    # vis_normal_shader.set_mat4fv("model", glm.value_ptr(monkey_pos))
+    # glDrawArrays(GL_TRIANGLES, 0, len(monkey_indices))  
+
+     
 
 
     #draw skybox

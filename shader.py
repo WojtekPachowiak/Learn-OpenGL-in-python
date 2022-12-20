@@ -27,9 +27,13 @@ class Shader:
         loc = glGetUniformLocation(self.program, uniform_name)
         glUniformMatrix4fv(loc, 1, GL_FALSE, value)
 
-    def set_vec3(self, uniform_name:str, value:glm.vec3):   
+    def set_vec3(self, uniform_name:str, value:glm.vec3, count=1):   
         loc = glGetUniformLocation(self.program, uniform_name)
-        glUniform3fv(loc, 1, value); 
+        glUniform3fv(loc, count, value); 
+    
+    def set_vec2(self, uniform_name:str, value:glm.vec2, count=1):   
+        loc = glGetUniformLocation(self.program, uniform_name)
+        glUniform2fv(loc, count, value); 
 
     def set_float(self, uniform_name:str, value:float):
         loc = glGetUniformLocation(self.program, uniform_name)
