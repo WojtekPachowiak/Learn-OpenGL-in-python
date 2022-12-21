@@ -49,9 +49,11 @@ void main() {
 
 #####################################
 
-def main(shader_name:str):
+def main(shader_name:str, add_geometry:bool=False):
     paths = []
     for ext, src in zip([".frag",".geom", ".vert"], [frag_template, geom_template, vert_template]):
+        if ext ==".geom" and add_geometry == False:
+            continue
         p =  os.path.join("shaders", shader_name + ext) 
         assert not os.path.exists(p)
         with open(p, "w") as f:
