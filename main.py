@@ -1,698 +1,248 @@
-import os
-os.environ['SDL_VIDEO_WINDOW_POS'] = '400,200'
-
-import pygame
-from OpenGL.GL import *
-from OpenGL.GL.shaders import compileProgram, compileShader
-from TextureLoader import load_texture_pygame, TEXTURE_WRAP, generate_framebuffer, load_cubemap
-from ObjLoader import ObjLoader
+from __future__ import absolute_import
+import numpy as np
 import glm
 from camera import Camera
 from constants import WIDTH, HEIGHT, NEAR_CLIP, FAR_CLIP
-import numpy as np
-from shader import Shader
-
+from shader import Shader   
 from model import Model
+import ctypes
+import sys
+import pygame
+import OpenGL.GL as gl
+from imgui.integrations.pygame import PygameRenderer
+import imgui
 
-# CAMERA settings
-cam = Camera()
-
-lastX, lastY = WIDTH / 2, HEIGHT / 2
-first_mouse = True
-
-
-def mouse_look(xpos, ypos):
-    global first_mouse, lastX, lastY
-
-    if first_mouse:
-        lastX = xpos
-        lastY = ypos
-        first_mouse = False
-
-    xoffset = xpos - lastX
-    yoffset = lastY - ypos
-
-    lastX = xpos
-    lastY = ypos
-
-    cam.process_mouse_movement(xoffset, yoffset)
-
-
-pygame.init()
-pygame.display.gl_set_attribute(pygame.GL_STENCIL_SIZE, 8)
-pygame.display.set_mode((WIDTH, HEIGHT), pygame.OPENGL | pygame.DOUBLEBUF | pygame.RESIZABLE) # |pygame.FULLSCREEN
-
-pygame.mouse.set_visible(False)
-pygame.event.set_grab(True)
-
-
-
-outline_shader = Shader("solid_color")
-texture_shader = Shader("texture")
-framebuffer_base_shader = Shader("framebuffer_base")
-skybox_shader = Shader("skybox_cubemap")
-reflective_shader = Shader("reflective_refractive")
-houses_shader = Shader("houses")
-explode_shader = Shader("explode")
-vis_normal_shader = Shader("visualize_normals")
-instanced_shader = Shader("instanced")
-asteroids_shader = Shader("asteroids")
-planet_shader = Shader("planet")
-
-rock = Model("meshes/rock/rock.obj")
-planet = Model("meshes/planet/planet.obj")
-
-def add_cube():
-    # vertices = np.array([
-    #     # positions          # normals
-    #     -0.5, -0.5, -0.5,  0.0,  0.0, -1.0,
-    #      0.5, -0.5, -0.5,  0.0,  0.0, -1.0,
-    #      0.5,  0.5, -0.5,  0.0,  0.0, -1.0,
-    #      0.5,  0.5, -0.5,  0.0,  0.0, -1.0,
-    #     -0.5,  0.5, -0.5,  0.0,  0.0, -1.0,
-    #     -0.5, -0.5, -0.5,  0.0,  0.0, -1.0,
-
-    #     -0.5, -0.5,  0.5,  0.0,  0.0, 1.0,
-    #      0.5, -0.5,  0.5,  0.0,  0.0, 1.0,
-    #      0.5,  0.5,  0.5,  0.0,  0.0, 1.0,
-    #      0.5,  0.5,  0.5,  0.0,  0.0, 1.0,
-    #     -0.5,  0.5,  0.5,  0.0,  0.0, 1.0,
-    #     -0.5, -0.5,  0.5,  0.0,  0.0, 1.0,
-
-    #     -0.5,  0.5,  0.5, -1.0,  0.0,  0.0,
-    #     -0.5,  0.5, -0.5, -1.0,  0.0,  0.0,
-    #     -0.5, -0.5, -0.5, -1.0,  0.0,  0.0,
-    #     -0.5, -0.5, -0.5, -1.0,  0.0,  0.0,
-    #     -0.5, -0.5,  0.5, -1.0,  0.0,  0.0,
-    #     -0.5,  0.5,  0.5, -1.0,  0.0,  0.0,
-
-    #      0.5,  0.5,  0.5,  1.0,  0.0,  0.0,
-    #      0.5,  0.5, -0.5,  1.0,  0.0,  0.0,
-    #      0.5, -0.5, -0.5,  1.0,  0.0,  0.0,
-    #      0.5, -0.5, -0.5,  1.0,  0.0,  0.0,
-    #      0.5, -0.5,  0.5,  1.0,  0.0,  0.0,
-    #      0.5,  0.5,  0.5,  1.0,  0.0,  0.0,
-
-    #     -0.5, -0.5, -0.5,  0.0, -1.0,  0.0,
-    #      0.5, -0.5, -0.5,  0.0, -1.0,  0.0,
-    #      0.5, -0.5,  0.5,  0.0, -1.0,  0.0,
-    #      0.5, -0.5,  0.5,  0.0, -1.0,  0.0,
-    #     -0.5, -0.5,  0.5,  0.0, -1.0,  0.0,
-    #     -0.5, -0.5, -0.5,  0.0, -1.0,  0.0,
-
-    #     -0.5,  0.5, -0.5,  0.0,  1.0,  0.0,
-    #      0.5,  0.5, -0.5,  0.0,  1.0,  0.0,
-    #      0.5,  0.5,  0.5,  0.0,  1.0,  0.0,
-    #      0.5,  0.5,  0.5,  0.0,  1.0,  0.0,
-    #     -0.5,  0.5,  0.5,  0.0,  1.0,  0.0,
-    #     -0.5,  0.5, -0.5,  0.0,  1.0,  0.0
-    # ], dtype=np.float32)
-    # vao = glGenVertexArrays(1);
-    # vbo = glGenBuffers(1);
-    # glBindVertexArray(vao);
-    # glBindBuffer(GL_ARRAY_BUFFER, vbo);
-    # glBufferData(GL_ARRAY_BUFFER, vertices.nbytes, vertices, GL_STATIC_DRAW);
-    # glEnableVertexAttribArray(0);
-    # glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * 4, ctypes.c_void_p(0));
-    # glEnableVertexAttribArray(1);
-    # glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * 4, ctypes.c_void_p(12));
-    # return vao
-    cube_indices, cube_buffer = ObjLoader.load_model("meshes/cube.obj", False)
-    vao = glGenVertexArrays(1)
-    vbo = glGenBuffers(1)
-    ebo = glGenBuffers(1)
-    glBindVertexArray(vao)
-    glBindBuffer(GL_ARRAY_BUFFER, vbo)
-    glBufferData(GL_ARRAY_BUFFER, cube_buffer.nbytes, cube_buffer, GL_STATIC_DRAW)
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo)
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, cube_indices.nbytes, cube_indices, GL_STATIC_DRAW)
-    # vertices
-    glEnableVertexAttribArray(0)
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, cube_buffer.itemsize * 8, ctypes.c_void_p(0))
-    # textures
-    glEnableVertexAttribArray(1)
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, cube_buffer.itemsize * 8, ctypes.c_void_p(12))
-    # normals
-    glEnableVertexAttribArray(2)
-    glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, cube_buffer.itemsize * 8, ctypes.c_void_p(20))
-    glBindVertexArray(0)
-    return vao, cube_indices
-
-def add_plane():
-    plane_indices, plane_buffer = ObjLoader.load_model("meshes/floor.obj")
-    vao = glGenVertexArrays(1)
-    vbo = glGenBuffers(1)
-    ebo = glGenBuffers(1)
-    glBindVertexArray(vao)
-    glBindBuffer(GL_ARRAY_BUFFER, vbo)
-    glBufferData(GL_ARRAY_BUFFER, plane_buffer.nbytes, plane_buffer, GL_STATIC_DRAW)
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo)
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, plane_indices.nbytes, plane_indices, GL_STATIC_DRAW)
-    # vertices
-    glEnableVertexAttribArray(0)
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, plane_buffer.itemsize * 8, ctypes.c_void_p(0))
-    # textures
-    glEnableVertexAttribArray(1)
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, plane_buffer.itemsize * 8, ctypes.c_void_p(12))
-    # normals
-    glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, plane_buffer.itemsize * 8, ctypes.c_void_p(20))
-    glEnableVertexAttribArray(2)
-    glBindVertexArray(0)
-    return vao, plane_indices
-
-
-def add_screenquad():
-    '''add a quad that fills the entire screen'''
-    #buffer in Normalized Device Coordinates
-    vertices = np.array([ 
-        #positions   #texCoords
-        -1.0,  1.0,  0.0, 1.0,
-        -1.0, -1.0,  0.0, 0.0,
-         1.0, -1.0,  1.0, 0.0,
-
-        -1.0,  1.0,  0.0, 1.0,
-         1.0, -1.0,  1.0, 0.0,
-         1.0,  1.0,  1.0, 1.0
-    ],dtype=np.float32)
-    vao = glGenVertexArrays(1)
-    vbo = glGenBuffers(1)
-    glBindVertexArray(vao)
-    glBindBuffer(GL_ARRAY_BUFFER, vbo)
-    glBufferData(GL_ARRAY_BUFFER, vertices.nbytes, vertices, GL_STATIC_DRAW)
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * vertices.itemsize, ctypes.c_void_p(0));
-    glEnableVertexAttribArray(1);
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * vertices.itemsize, ctypes.c_void_p(8));
-    glBindVertexArray(0)
-    return vao
-
-def add_skybox():
-    vertices = np.array([
-            # positions          
-            -1.0,  1.0, -1.0,
-            -1.0, -1.0, -   1.0,
-            1.0, -1.0, -1.0,
-            1.0, -1.0, -1.0,
-            1.0,  1.0, -1.0,
-            -1.0,  1.0, -1.0,
-
-            -1.0, -1.0,  1.0,
-            -1.0, -1.0, -1.0,
-            -1.0,  1.0, -1.0,
-            -1.0,  1.0, -1.0,
-            -1.0,  1.0,  1.0,
-            -1.0, -1.0,  1.0,
-
-            1.0, -1.0, -1.0,
-            1.0, -1.0,  1.0,
-            1.0,  1.0,  1.0,
-            1.0,  1.0,  1.0,
-            1.0,  1.0, -1.0,
-            1.0, -1.0, -1.0,
-
-            -1.0, -1.0,  1.0,
-            -1.0,  1.0,  1.0,
-            1.0,  1.0,  1.0,
-            1.0,  1.0,  1.0,
-            1.0, -1.0,  1.0,
-            -1.0, -1.0,  1.0,
-
-            -1.0,  1.0, -1.0,
-            1.0,  1.0, -1.0,
-            1.0,  1.0,  1.0,
-            1.0,  1.0,  1.0,
-            -1.0,  1.0,  1.0,
-            -1.0,  1.0, -1.0,
-
-            -1.0, -1.0, -1.0,
-            -1.0, -1.0,  1.0,
-            1.0, -1.0, -1.0,
-            1.0, -1.0, -1.0,
-            -1.0, -1.0,  1.0,
-            1.0, -1.0,  1.0
-    ],dtype=np.float32)
-    vao = glGenVertexArrays(1)
-    vbo = glGenBuffers(1)
-    glBindVertexArray(vao)
-    glBindBuffer(GL_ARRAY_BUFFER, vbo)
-    glBufferData(GL_ARRAY_BUFFER, vertices.nbytes, vertices, GL_STATIC_DRAW)
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * vertices.itemsize, ctypes.c_void_p(0));
-    glBindVertexArray(0)
-    return vao
-
-def add_four_points():
-    vertices = np.array([
-    -0.5,  0.5, 1.0, 0.0, 0.0, # top-left
-     0.5,  0.5, 0.0, 1.0, 0.0, # top-right
-     0.5, -0.5, 0.0, 0.0, 1.0, # bottom-right
-    -0.5, -0.5, 1.0, 1.0, 0.0  # bottom-left
-    ], dtype=np.float32)
-    vao = glGenVertexArrays(1)
-    vbo = glGenBuffers(1)
-    glBindVertexArray(vao)
-    glBindBuffer(GL_ARRAY_BUFFER, vbo)
-    glBufferData(GL_ARRAY_BUFFER, vertices.nbytes, vertices, GL_STATIC_DRAW)
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 5 * vertices.itemsize, ctypes.c_void_p(0));
-    glEnableVertexAttribArray(1);
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 5 * vertices.itemsize, ctypes.c_void_p(8));
-    glBindVertexArray(0)
-    return vao
-
-
-def add_monkey():
-    monkey_indices, monkey_buffer = ObjLoader.load_model("meshes/monkey.obj")
-    # monkey VAO
-    vao = glGenVertexArrays(1)
-    vbo = glGenBuffers(1)
-    glBindVertexArray(vao) 
-    # monkey Vertex Buffer Object
-    glBindBuffer(GL_ARRAY_BUFFER, vbo)
-    glBufferData(GL_ARRAY_BUFFER, monkey_buffer.nbytes, monkey_buffer, GL_STATIC_DRAW)
-    # monkey vertices
-    glEnableVertexAttribArray(0)
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, monkey_buffer.itemsize * 8, ctypes.c_void_p(0))
-    # monkey textures
-    glEnableVertexAttribArray(1)
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, monkey_buffer.itemsize * 8, ctypes.c_void_p(12))
-    # monkey normals
-    glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, monkey_buffer.itemsize * 8, ctypes.c_void_p(20))
-    glEnableVertexAttribArray(2)
-    return vao, monkey_indices
-
-def add_instanced_quad():
-    vertices = np.array([
-    # positions     # colors
-    -0.05,  0.05,  1.0, 0.0, 0.0,
-     0.05, -0.05,  0.0, 1.0, 0.0,
-    -0.05, -0.05,  0.0, 0.0, 1.0,
-
-    -0.05,  0.05,  1.0, 0.0, 0.0,
-     0.05, -0.05,  0.0, 1.0, 0.0,   
-     0.05,  0.05,  0.0, 1.0, 1.0		    		
-    ],dtype=np.float32)
-    vao = glGenVertexArrays(1)
-    vbo = glGenBuffers(1)
-    glBindVertexArray(vao)
-    glBindBuffer(GL_ARRAY_BUFFER, vbo)
-    glBufferData(GL_ARRAY_BUFFER, vertices.nbytes, vertices, GL_STATIC_DRAW)
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 5 * vertices.itemsize, ctypes.c_void_p(0));
-    glEnableVertexAttribArray(1);
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 5 * vertices.itemsize, ctypes.c_void_p(8));
-
-
-    #preparing instanced_shader
-    x = np.linspace(-0.9, 0.9, 10)
-    translations = np.dstack(np.meshgrid(x,x)).reshape(-1,2).astype(np.float32)
-
-    instanceVBO = glGenBuffers(1);
-    glBindBuffer(GL_ARRAY_BUFFER, instanceVBO);
-    glBufferData(GL_ARRAY_BUFFER, translations.nbytes, translations, GL_STATIC_DRAW);
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-
-    glEnableVertexAttribArray(2);
-    glBindBuffer(GL_ARRAY_BUFFER, instanceVBO);
-    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 2 * translations.itemsize, ctypes.c_void_p(0));
-    glBindBuffer(GL_ARRAY_BUFFER, 0);	
-    glVertexAttribDivisor(2, 1);  
-    glBindVertexArray(0)
-
-    return vao
-
-
-floor_vao, floor_indices = add_plane()
-# screenquad_vao = add_screenquad()
-# skybox_vao = add_skybox()
-# cube_vao, cube_indices = add_cube()
-# four_points_vao = add_four_points()
-# monkey_vao, monkey_indices = add_monkey()
-# instanced_vao = add_instanced_quad()
-
-
-textures = glGenTextures(5)
-load_texture_pygame("meshes/cube.jpg", textures[0])
-load_texture_pygame("meshes/monkey.jpg", textures[1])
-load_texture_pygame("meshes/floor.jpg", textures[2])    
-load_texture_pygame("textures/grass.png", textures[3], TEXTURE_WRAP.GL_CLAMP_TO_EDGE)
-
-#cubemap
-faces_paths = [
-    "textures/skybox/right.jpg",
-    "textures/skybox/left.jpg",
-    "textures/skybox/top.jpg",
-    "textures/skybox/bottom.jpg",
-    "textures/skybox/front.jpg",
-    "textures/skybox/back.jpg"
-]
-cubemap_tex = load_cubemap(faces_paths);  
-
-#framebuffer
-framebuffer, frametexture = generate_framebuffer()
-
-def global_settings():
-    glEnable(GL_DEPTH_TEST)
-    # glDepthFunc(GL_LESS)
-
-    # glEnable(GL_STENCIL_TEST);
-    # glStencilFunc(GL_NOTEQUAL, 1, 0xFF);
-    # glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);
-
-    # glEnable(GL_BLEND);  
-    # glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);  
-
-    # glEnable(GL_CULL_FACE)
-
-
-global_settings()
-
-
-cube_pos =  glm.translate(glm.scale(glm.mat4(1.0),[5,5,5]), [6, 4, 0])
-monkey_pos =  glm.translate(glm.mat4(1.0), [-4, 4, -4])
-floor_pos =  glm.translate(glm.mat4(1.0), [0, 0, 0])
-grass_pos = glm.translate(glm.rotate(glm.scale(glm.mat4(1.0), glm.vec3(0.2,0.2,0.2)), glm.radians(90), [1,0,0] ), [0,15,-30]) 
-
-projection = glm.perspective(45, WIDTH / HEIGHT, NEAR_CLIP, FAR_CLIP)
-
-
-amount = 100000
-modelMatrices = glm.array.zeros(amount, glm.mat4)
-import time
-glm.setSeed(int(time.time())) # initialize random seed	
-radius = 150.0
-offset = 25.0
-for i in range(amount):
-    model = glm.mat4(1.0)
-    # 1. translation: displace along circle with 'radius' in range [-offset, offset]
-    angle = float(i) / amount * 360.0
-    displacement = glm.linearRand(-offset, offset)
-    x = glm.sin(angle) * radius + displacement
-    displacement = glm.linearRand(-offset, offset)
-    y = displacement * 0.4 # keep height of asteroid field smaller compared to width of x and z
-    displacement = glm.linearRand(-offset, offset)
-    z = glm.cos(angle) * radius + displacement
-    model = glm.translate(model, glm.vec3(x, y, z))
-
-    # 2. scale: Scale between 0.05 and 0.25
-    scale = glm.linearRand(0.05, 0.25)
-    model = glm.scale(model, glm.vec3(scale))
-
-    # 3. rotation: add random rotation around a (semi)randomly picked rotation axis vector
-    rotAngle = glm.linearRand(0, 360)
-    model = glm.rotate(model, rotAngle, glm.vec3(0.4, 0.6, 0.8))
-
-    # 4. now add to list of matrices
-    modelMatrices[i] = model
-
-buffer = glGenBuffers(1)
-glBindBuffer(GL_ARRAY_BUFFER, buffer)
-glBufferData(GL_ARRAY_BUFFER, modelMatrices.nbytes, modelMatrices.ptr, GL_STATIC_DRAW)
-
-for i in range(len(rock.meshes)):
-        VAO = rock.meshes[i].VAO
-        glBindVertexArray(VAO)
-        # set attribute pointers for matrix (4 times vec4)
-        glEnableVertexAttribArray(3)
-        glVertexAttribPointer(3, 4, GL_FLOAT, GL_FALSE, glm.sizeof(glm.mat4), None)
-        glEnableVertexAttribArray(4)
-        glVertexAttribPointer(4, 4, GL_FLOAT, GL_FALSE, glm.sizeof(glm.mat4), ctypes.c_void_p(glm.sizeof(glm.vec4)))
-        glEnableVertexAttribArray(5)
-        glVertexAttribPointer(5, 4, GL_FLOAT, GL_FALSE, glm.sizeof(glm.mat4), ctypes.c_void_p(2 * glm.sizeof(glm.vec4)))
-        glEnableVertexAttribArray(6)
-        glVertexAttribPointer(6, 4, GL_FLOAT, GL_FALSE, glm.sizeof(glm.mat4), ctypes.c_void_p(3 * glm.sizeof(glm.vec4)))
-
-        glVertexAttribDivisor(3, 1)
-        glVertexAttribDivisor(4, 1)
-        glVertexAttribDivisor(5, 1)
-        glVertexAttribDivisor(6, 1)
-
-        glBindVertexArray(0)
-    
-
-
-
-
-
-running = True
-
-while running:
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            running = False
-        elif  event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
-            running = False
-        if event.type == pygame.VIDEORESIZE:
-            glViewport(0, 0, event.w, event.h)
-            projection = glm.perspective(glm.radians(45), event.w / event.h, NEAR_CLIP, FAR_CLIP)
-    keys_pressed = pygame.key.get_pressed()
-    if keys_pressed[pygame.K_a]:
-        cam.process_keyboard("LEFT", 0.08)
-    if keys_pressed[pygame.K_d]:
-        cam.process_keyboard("RIGHT", 0.08)
-    if keys_pressed[pygame.K_w]:
-        cam.process_keyboard("FORWARD", 0.08)
-    if keys_pressed[pygame.K_s]:
-        cam.process_keyboard("BACKWARD", 0.08)
-
-
-    mouse_pos = pygame.mouse.get_pos()
-    # mouse_look(mouse_pos[0], mouse_pos[1])
-    xoffset, yoffset = pygame.mouse.get_rel()
-    cam.process_mouse_movement(xoffset, -yoffset)
-    # to been able to look around 360 degrees, still not perfect
-    # if mouse_pos[0] <= 0:
-    #     pygame.mouse.set_pos((WIDTH-1, mouse_pos[1]))
-    # elif mouse_pos[0] >= WIDTH-1:
-    #     pygame.mouse.set_pos((0, mouse_pos[1]))
+timer = 0
+fps=0 
+
+def main():
+    # CAMERA settings
+    cam = Camera()
+
+
+    pygame.init()
+    pygame.display.gl_set_attribute(pygame.GL_STENCIL_SIZE, 8)
+    pygame.display.set_mode((WIDTH, HEIGHT), pygame.OPENGL | pygame.DOUBLEBUF | pygame.RESIZABLE) # |pygame.FULLSCREEN
+
+    pygame.mouse.set_visible(False)
+    pygame.event.set_grab(True)
+
+    #imgui setup
+    imgui.create_context()
+    impl = PygameRenderer()
+    io = imgui.get_io()
+    io.display_size = (WIDTH, HEIGHT)
+
+
+  
+    asteroids_shader = Shader("asteroids")
+    planet_shader = Shader("planet")
+
+    rock = Model("meshes/rock/rock.obj")
+    planet = Model("meshes/planet/planet.obj")
+
+
+
+
+
+    #cubemap
+    # faces_paths = [
+    #     "textures/skybox/right.jpg",
+    #     "textures/skybox/left.jpg",
+    #     "textures/skybox/top.jpg",
+    #     "textures/skybox/bottom.jpg",
+    #     "textures/skybox/front.jpg",
+    #     "textures/skybox/back.jpg"
+    # ]
+    # cubemap_tex = load_cubemap(faces_paths);  
+
+    # #framebuffer
+    # framebuffer, frametexture = generate_framebuffer()
+
+    def global_settings():
+        gl.glEnable(gl.GL_DEPTH_TEST)
+        # glDepthFunc(GL_LESS)
+
+        # glEnable(GL_STENCIL_TEST);
+        # glStencilFunc(GL_NOTEQUAL, 1, 0xFF);
+        # glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);
+
+        # glEnable(GL_BLEND);  
+        # glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);  
+
+        # glEnable(GL_CULL_FACE)
+    global_settings()
+
+
+    projection = glm.perspective(45, WIDTH / HEIGHT, NEAR_CLIP, FAR_CLIP)
+
+
+    amount = 100000
+    modelMatrices = glm.array.zeros(amount, glm.mat4)
+    import time
+    glm.setSeed(int(time.time())) # initialize random seed	
+    radius = 150.0
+    offset = 25.0
+    for i in range(amount):
+        model = glm.mat4(1.0)
+        # 1. translation: displace along circle with 'radius' in range [-offset, offset]
+        angle = float(i) / amount * 360.0
+        displacement = glm.linearRand(-offset, offset)
+        x = glm.sin(angle) * radius + displacement
+        displacement = glm.linearRand(-offset, offset)
+        y = displacement * 0.4 # keep height of asteroid field smaller compared to width of x and z
+        displacement = glm.linearRand(-offset, offset)
+        z = glm.cos(angle) * radius + displacement
+        model = glm.translate(model, glm.vec3(x, y, z))
+
+        # 2. scale: Scale between 0.05 and 0.25
+        scale = glm.linearRand(0.05, 0.25)
+        model = glm.scale(model, glm.vec3(scale))
+
+        # 3. rotation: add random rotation around a (semi)randomly picked rotation axis vector
+        rotAngle = glm.linearRand(0, 360)
+        model = glm.rotate(model, rotAngle, glm.vec3(0.4, 0.6, 0.8))
+
+        # 4. now add to list of matrices
+        modelMatrices[i] = model
+
+    buffer = gl.glGenBuffers(1)
+    gl.glBindBuffer(gl.GL_ARRAY_BUFFER, buffer)
+    gl.glBufferData(gl.GL_ARRAY_BUFFER, modelMatrices.nbytes, modelMatrices.ptr, gl.GL_STATIC_DRAW)
+
+    for i in range(len(rock.meshes)):
+            VAO = rock.meshes[i].VAO
+            gl.glBindVertexArray(VAO)
+            # set attribute pointers for matrix (4 times vec4)
+            gl.glEnableVertexAttribArray(3)
+            gl.glVertexAttribPointer(3, 4, gl.GL_FLOAT, gl.GL_FALSE, glm.sizeof(glm.mat4), None)
+            gl.glEnableVertexAttribArray(4)
+            gl.glVertexAttribPointer(4, 4, gl.GL_FLOAT, gl.GL_FALSE, glm.sizeof(glm.mat4), ctypes.c_void_p(glm.sizeof(glm.vec4)))
+            gl.glEnableVertexAttribArray(5)
+            gl.glVertexAttribPointer(5, 4, gl.GL_FLOAT, gl.GL_FALSE, glm.sizeof(glm.mat4), ctypes.c_void_p(2 * glm.sizeof(glm.vec4)))
+            gl.glEnableVertexAttribArray(6)
+            gl.glVertexAttribPointer(6, 4, gl.GL_FLOAT, gl.GL_FALSE, glm.sizeof(glm.mat4), ctypes.c_void_p(3 * glm.sizeof(glm.vec4)))
+
+            gl.glVertexAttribDivisor(3, 1)
+            gl.glVertexAttribDivisor(4, 1)
+            gl.glVertexAttribDivisor(5, 1)
+            gl.glVertexAttribDivisor(6, 1)
+
+            gl.glBindVertexArray(0)
+    gl.glBindBuffer(gl.GL_ARRAY_BUFFER,0)
+
+
+
+    clock = pygame.time.Clock()
+
+    def imgui_logic():
+        if imgui.begin_main_menu_bar():
+            if imgui.begin_menu("File", True):
+
+                clicked_quit, selected_quit = imgui.menu_item(
+                    "Quit", 'Cmd+Q', False, True
+                )
+
+                if clicked_quit:
+                    exit(1)
+
+                imgui.end_menu()
+            imgui.end_main_menu_bar()
 
         
-    ct = pygame.time.get_ticks() / 1000
+        # imgui.show_test_window()
+
+        clock.tick()
+        global timer, fps
+        timer += clock.get_time()
+        if (timer > 2000):
+            timer=0
+            fps = int(clock.get_fps())
+        flags = (
+            imgui.WINDOW_NO_SCROLLBAR | 
+            imgui.WINDOW_NO_DECORATION | 
+            imgui.WINDOW_ALWAYS_AUTO_RESIZE | 
+            imgui.WINDOW_NO_FOCUS_ON_APPEARING |
+            imgui.WINDOW_NO_SAVED_SETTINGS |
+            imgui.WINDOW_NO_NAV
+        )
+        imgui.begin("FPS tracker", True,flags)
+        imgui.text(f"FPS: {fps}")
+        imgui.end()
 
 
+    running = True
+    while running:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running = False
+            elif  event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                running = False
+            if event.type == pygame.VIDEORESIZE:
+                gl.glViewport(0, 0, event.w, event.h)
+                projection = glm.perspective(glm.radians(45), event.w / event.h, NEAR_CLIP, FAR_CLIP)
+            impl.process_event(event)
+        keys_pressed = pygame.key.get_pressed()
+        if keys_pressed[pygame.K_a]:
+            cam.process_keyboard("LEFT", 0.08)
+        if keys_pressed[pygame.K_d]:
+            cam.process_keyboard("RIGHT", 0.08)
+        if keys_pressed[pygame.K_w]:
+            cam.process_keyboard("FORWARD", 0.08)
+        if keys_pressed[pygame.K_s]:
+            cam.process_keyboard("BACKWARD", 0.08)
+
+        imgui.new_frame()
+
+        xoffset, yoffset = pygame.mouse.get_rel()
+        cam.process_mouse_movement(xoffset, -yoffset)
+
+                
+
+        
+        view = cam.get_view_matrix()
+        #view and projection setting
+        asteroids_shader.use()
+        asteroids_shader.set_mat4fv("view", glm.value_ptr(view))
+        asteroids_shader.set_mat4fv("projection", glm.value_ptr(projection))
+        planet_shader.use()
+        planet_shader.set_mat4fv("view", glm.value_ptr(view))
+        planet_shader.set_mat4fv("projection", glm.value_ptr(projection))
+        gl.glUseProgram(0)
+
+        imgui_logic()
+
+        
+        
 
 
+        gl.glClearColor(0.0, 0.0, .0, 1.0)
+        gl.glClear(gl.GL_COLOR_BUFFER_BIT | gl.GL_DEPTH_BUFFER_BIT)
 
-    # # ############################## first pass
-    # glEnable(GL_DEPTH_TEST); 
-    # glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
-    # glClearColor(0.1, 0.1, 0.1, 1.0);
-    # glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
+        # draw planet
+        model = glm.mat4(1.0);
+        model = glm.translate(model, glm.vec3(0.0, -3.0, 0.0));
+        model = glm.scale(model, glm.vec3(4.0, 4.0, 4.0));
+        planet_shader.use()
+        planet_shader.set_mat4fv("model", glm.value_ptr(model));
+        planet.Draw(planet_shader);
 
+        # draw meteorites
+        asteroids_shader.use()
+        asteroids_shader.set_int("texture_diffuse1", 0)
+        gl.glActiveTexture(gl.GL_TEXTURE0)
+        gl.glBindTexture(gl.GL_TEXTURE_2D, rock.textures_loaded[0].id) # note: we also made the textures_loaded vector public (instead of private) from the model class.
+        for i in range(len(rock.meshes)):
+            gl.glBindVertexArray(rock.meshes[i].VAO)
+            gl.glDrawElementsInstanced(gl.GL_TRIANGLES, len(rock.meshes[i].indices), gl.GL_UNSIGNED_INT, None, amount)
+            gl.glBindVertexArray(0)
+        gl.glUseProgram(0)
 
+        imgui.render()
+        impl.render(imgui.get_draw_data())
+        pygame.display.flip()
 
-    # #camera turn around
-    # cam.jaw += 180
-    # cam.process_mouse_movement(0,0,False)
-    view = cam.get_view_matrix()
-    # cam.jaw -= 180
-    # cam.process_mouse_movement(0,0,True)
+    pygame.quit()
 
-    #view and projection setting
-    texture_shader.use()
-    texture_shader.set_mat4fv("view", glm.value_ptr(view))
-    texture_shader.set_mat4fv("projection", glm.value_ptr(projection))
-    outline_shader.use()
-    outline_shader.set_mat4fv("view", glm.value_ptr(view))
-    outline_shader.set_mat4fv("projection", glm.value_ptr(projection))
-    # skybox_shader.use()
-    # skybox_shader.set_mat4fv("projection", glm.value_ptr(projection))
-    # reflective_shader.use()
-    # reflective_shader.set_mat4fv("view", glm.value_ptr(view))
-    # reflective_shader.set_mat4fv("projection", glm.value_ptr(projection))
-    # explode_shader.use()
-    # explode_shader.set_mat4fv("view", glm.value_ptr(view))
-    # explode_shader.set_mat4fv("projection", glm.value_ptr(projection))
-    # vis_normal_shader.use()
-    # vis_normal_shader.set_mat4fv("view", glm.value_ptr(view))
-    # vis_normal_shader.set_mat4fv("projection", glm.value_ptr(projection))
-    asteroids_shader.use()
-    asteroids_shader.set_mat4fv("view", glm.value_ptr(view))
-    asteroids_shader.set_mat4fv("projection", glm.value_ptr(projection))
-    planet_shader.use()
-    planet_shader.set_mat4fv("view", glm.value_ptr(view))
-    planet_shader.set_mat4fv("projection", glm.value_ptr(projection))
-    
-
-    # instanced_shader.use()
-    # instanced_shader.set_mat4fv("view", glm.value_ptr(view))
-    # instanced_shader.set_mat4fv("projection", glm.value_ptr(projection))
-
-
-    # # draw the floor
-    # texture_shader.use()
-    # glBindVertexArray(floor_vao)
-    # glBindTexture(GL_TEXTURE_2D, textures[2])
-    # texture_shader.set_mat4fv("model",glm.value_ptr(floor_pos))
-    # glDrawArrays(GL_TRIANGLES, 0, len(floor_indices))
-    # glBindVertexArray(0)
-
-
-    # #draw mirror
-    # texture_shader.use()
-    # glBindVertexArray(floor_vao)
-    # glBindTexture(GL_TEXTURE_2D,frametexture)
-    # texture_shader.set_mat4fv("model",glm.value_ptr(grass_pos))
-    # glDrawArrays(GL_TRIANGLES, 0, len(floor_indices))
-    # glBindVertexArray(0);
-    
-    # # draw the cube
-    # glStencilFunc(GL_ALWAYS, 1, 0xFF)
-    # glStencilMask(0xFF)
-    # glUseProgram(texture_shader)
-    # glBindVertexArray(VAO[0])
-    # glBindTexture(GL_TEXTURE_2D, textures[0])
-    # glUniformMatrix4fv(model_loc, 1, GL_FALSE, glm.value_ptr(cube_pos))
-    # glDrawElements(GL_TRIANGLES, len(cube_indices), GL_UNSIGNED_INT, None)
-
-
-
-    # # draw cube's outline
-    # glStencilFunc(GL_NOTEQUAL, 1, 0xFF)
-    # glStencilMask(0x00)
-    # glDisable(GL_DEPTH_TEST)
-    # glUseProgram(outline_shader.program)
-    # scale = 1.5
-    # glBindVertexArray(VAO[0])
-    # glBindTexture(GL_TEXTURE_2D, textures[0])
-    # model = cube_pos
-    # # model = glm.translate(model, glm.vec3(-1.0, 0.0, -1.0))
-    # model = glm.scale(model, glm.vec3(scale, scale, scale))
-    # glUniformMatrix4fv(omodel_loc, 1, GL_FALSE, glm.value_ptr(model))
-    # glDrawElements(GL_TRIANGLES, len(cube_indices), GL_UNSIGNED_INT, None)
-
-
-    # glStencilMask(0x00)
-    # glStencilFunc(GL_ALWAYS, 0, 0xFF)
-    # glEnable(GL_DEPTH_TEST) 
-    
-    # #draw grass
-    # glUseProgram(texture_shader)
-    # glBindVertexArray(VAO[2])
-    # glBindTexture(GL_TEXTURE_2D, textures[3])
-    # for t in range(5):
-    #     grass_pos2 = glm.translate(grass_pos, [0,t*-15,0])
-    #     glUniformMatrix4fv(model_loc, 1, GL_FALSE, glm.value_ptr(grass_pos2))
-    #     glDrawArrays(GL_TRIANGLES, 0, len(floor_indices))
-
-
-    #################### second pass
-    glBindFramebuffer(GL_FRAMEBUFFER, 0) # back to default
-    # glDisable(GL_DEPTH_TEST)
-
-    glClearColor(0.0, 0.0, .0, 1.0)
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
-    
-    
-
-    # #set view for mirror view
-    # view = cam.get_view_matrix()
-    # texture_shader.use()
-    # texture_shader.set_mat4fv("view", glm.value_ptr(view))
-
-    #old draw meteorites
-    # texture_shader.use()
-    # glBindVertexArray(cube_vao)
-    # glBindTexture(GL_TEXTURE_2D, textures[2])
-    # texture_shader.set_vec4("color",np.array([1.,1.,0.,1.],dtype=np.float32))
-    # # draw meteorites
-    # for i in range(amount):
-    #     # draw the cube
-    #     texture_shader.set_mat4fv("model", glm.value_ptr(modelMatrices[i]));
-    #     glDrawElementsInstanced(GL_TRIANGLES, len(cube_indices), GL_UNSIGNED_INT, 0, amount)
-
-
-
-    # # draw the floor once again
-    # texture_shader.use()
-    # glBindVertexArray(floor_vao)
-    # glBindTexture(GL_TEXTURE_2D, textures[2])
-    # texture_shader.set_mat4fv("model",glm.value_ptr(floor_pos))
-    # glDrawArrays(GL_TRIANGLES, 0, len(floor_indices))
-    # glBindVertexArray(0)
-
-
-    # draw planet
-    model = glm.mat4(1.0);
-    model = glm.translate(model, glm.vec3(0.0, -3.0, 0.0));
-    model = glm.scale(model, glm.vec3(4.0, 4.0, 4.0));
-    planet_shader.set_mat4fv("model", glm.value_ptr(model));
-    planet.Draw(planet_shader);
-
-    # draw meteorites
-    asteroids_shader.use()
-    asteroids_shader.set_int("texture_diffuse1", 0)
-    glActiveTexture(GL_TEXTURE0)
-    glBindTexture(GL_TEXTURE_2D, rock.textures_loaded[0].id) # note: we also made the textures_loaded vector public (instead of private) from the model class.
-    for i in range(len(rock.meshes)):
-
-        glBindVertexArray(rock.meshes[i].VAO)
-        glDrawElementsInstanced(GL_TRIANGLES, len(rock.meshes[i].indices), GL_UNSIGNED_INT, None, amount)
-        glBindVertexArray(0)
-
-
-    # #draw instanced quads
-    # instanced_shader.use()
-    # glBindVertexArray(instanced_vao);
-    # glDrawArraysInstanced(GL_TRIANGLES, 0, 6, 100);  
-    
-
-    
-
-    # draw the cube
-    # reflective_shader.use()
-    # glBindVertexArray(cube_vao)
-    # # glBindTexture(GL_TEXTURE_CUBE_MAP, cubemap_tex);
-    # reflective_shader.set_mat4fv("model", glm.value_ptr(cube_pos))
-    # reflective_shader.set_vec3("cameraPos", glm.value_ptr(cam.camera_pos))
-    # glDrawArrays(GL_TRIANGLES, 0, 36);
-
-    # #draw four points
-    # houses_shader.use()
-    # glBindVertexArray(four_points_vao)
-    # glDrawArrays(GL_POINTS, 0, 4)
-    
-    # draw the monkey
-    # texture_shader.use()
-    # glBindVertexArray(monkey_vao)
-    # glBindTexture(GL_TEXTURE_2D, textures[1])
-    # texture_shader.set_mat4fv("model", glm.value_ptr(monkey_pos))
-    # glDrawArrays(GL_TRIANGLES, 0, len(monkey_indices)) 
-
-    # # draw the monkey normals
-    # vis_normal_shader.use()
-    # glBindVertexArray(monkey_vao)
-    # glBindTexture(GL_TEXTURE_2D, textures[1])
-    # vis_normal_shader.set_mat4fv("model", glm.value_ptr(monkey_pos))
-    # glDrawArrays(GL_TRIANGLES, 0, len(monkey_indices))  
-
-     
-
-
-    #draw skybox
-    # glDepthFunc(GL_LEQUAL);  # change depth function so depth test passes when values are equal to depth buffer's content
-    # skybox_shader.use();
-    # skybox_view = glm.mat4(glm.mat3(cam.get_view_matrix()));  
-    # skybox_shader.set_mat4fv("view", glm.value_ptr(skybox_view))
-    # glBindVertexArray(skybox_vao);
-    # glBindTexture(GL_TEXTURE_CUBE_MAP, cubemap_tex);
-    # glDrawArrays(GL_TRIANGLES, 0, 36);
-    # glBindVertexArray(0);
-    # glDepthFunc(GL_LESS); # set depth function back to default
-
-
-    # #draw screenquad
-    # framebuffer_base_shader.use()
-    # frame_model =  glm.translate(glm.scale(glm.mat4(1.0), glm.vec3(0.4,0.4,0)), [0,2,0])
-
-    # framebuffer_base_shader.set_mat4fv("model",glm.value_ptr(frame_model) )
-    # glBindVertexArray(screenquad_vao)
-    # glBindTexture(GL_TEXTURE_2D, frametexture)
-    # glDrawArrays(GL_TRIANGLES, 0, 6)
-    
-
-
-
-    pygame.display.flip()
-
-pygame.quit()
+if __name__ == "__main__":
+    main()
