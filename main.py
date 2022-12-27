@@ -22,6 +22,8 @@ def main():
 
     pygame.init()
     pygame.display.gl_set_attribute(pygame.GL_STENCIL_SIZE, 8)
+    pygame.display.gl_set_attribute(pygame.GL_MULTISAMPLESAMPLES, 16) #antialiasing
+
     pygame.display.set_mode((WIDTH, HEIGHT), pygame.OPENGL | pygame.DOUBLEBUF | pygame.RESIZABLE) # |pygame.FULLSCREEN
 
     pygame.mouse.set_visible(False)
@@ -37,9 +39,12 @@ def main():
   
     asteroids_shader = Shader("asteroids")
     planet_shader = Shader("planet")
+    solid_color_shader = Shader("solid_color")
 
-    rock = Model("meshes/rock/rock.obj")
+    # rock = Model("meshes/rock/rock.obj")
     planet = Model("meshes/planet/planet.obj")
+    cube = Model("meshes\cube.obj")
+    monkey = Model("meshes/monkey.obj")
 
 
 
@@ -77,59 +82,6 @@ def main():
     projection = glm.perspective(45, WIDTH / HEIGHT, NEAR_CLIP, FAR_CLIP)
 
 
-    amount = 100000
-    modelMatrices = glm.array.zeros(amount, glm.mat4)
-    import time
-    glm.setSeed(int(time.time())) # initialize random seed	
-    radius = 150.0
-    offset = 25.0
-    for i in range(amount):
-        model = glm.mat4(1.0)
-        # 1. translation: displace along circle with 'radius' in range [-offset, offset]
-        angle = float(i) / amount * 360.0
-        displacement = glm.linearRand(-offset, offset)
-        x = glm.sin(angle) * radius + displacement
-        displacement = glm.linearRand(-offset, offset)
-        y = displacement * 0.4 # keep height of asteroid field smaller compared to width of x and z
-        displacement = glm.linearRand(-offset, offset)
-        z = glm.cos(angle) * radius + displacement
-        model = glm.translate(model, glm.vec3(x, y, z))
-
-        # 2. scale: Scale between 0.05 and 0.25
-        scale = glm.linearRand(0.05, 0.25)
-        model = glm.scale(model, glm.vec3(scale))
-
-        # 3. rotation: add random rotation around a (semi)randomly picked rotation axis vector
-        rotAngle = glm.linearRand(0, 360)
-        model = glm.rotate(model, rotAngle, glm.vec3(0.4, 0.6, 0.8))
-
-        # 4. now add to list of matrices
-        modelMatrices[i] = model
-
-    buffer = gl.glGenBuffers(1)
-    gl.glBindBuffer(gl.GL_ARRAY_BUFFER, buffer)
-    gl.glBufferData(gl.GL_ARRAY_BUFFER, modelMatrices.nbytes, modelMatrices.ptr, gl.GL_STATIC_DRAW)
-
-    for i in range(len(rock.meshes)):
-            VAO = rock.meshes[i].VAO
-            gl.glBindVertexArray(VAO)
-            # set attribute pointers for matrix (4 times vec4)
-            gl.glEnableVertexAttribArray(3)
-            gl.glVertexAttribPointer(3, 4, gl.GL_FLOAT, gl.GL_FALSE, glm.sizeof(glm.mat4), None)
-            gl.glEnableVertexAttribArray(4)
-            gl.glVertexAttribPointer(4, 4, gl.GL_FLOAT, gl.GL_FALSE, glm.sizeof(glm.mat4), ctypes.c_void_p(glm.sizeof(glm.vec4)))
-            gl.glEnableVertexAttribArray(5)
-            gl.glVertexAttribPointer(5, 4, gl.GL_FLOAT, gl.GL_FALSE, glm.sizeof(glm.mat4), ctypes.c_void_p(2 * glm.sizeof(glm.vec4)))
-            gl.glEnableVertexAttribArray(6)
-            gl.glVertexAttribPointer(6, 4, gl.GL_FLOAT, gl.GL_FALSE, glm.sizeof(glm.mat4), ctypes.c_void_p(3 * glm.sizeof(glm.vec4)))
-
-            gl.glVertexAttribDivisor(3, 1)
-            gl.glVertexAttribDivisor(4, 1)
-            gl.glVertexAttribDivisor(5, 1)
-            gl.glVertexAttribDivisor(6, 1)
-
-            gl.glBindVertexArray(0)
-    gl.glBindBuffer(gl.GL_ARRAY_BUFFER,0)
 
 
 
@@ -208,35 +160,34 @@ def main():
         planet_shader.use()
         planet_shader.set_mat4fv("view", glm.value_ptr(view))
         planet_shader.set_mat4fv("projection", glm.value_ptr(projection))
+        solid_color_shader.use()
+        solid_color_shader.set_mat4fv("view", glm.value_ptr(view))
+        solid_color_shader.set_mat4fv("projection", glm.value_ptr(projection))
         gl.glUseProgram(0)
-
+        
         imgui_logic()
 
         
         
 
 
-        gl.glClearColor(0.0, 0.0, .0, 1.0)
+        gl.glClearColor(0.0, 0.0, 1.0, 1.0)
         gl.glClear(gl.GL_COLOR_BUFFER_BIT | gl.GL_DEPTH_BUFFER_BIT)
 
-        # draw planet
+
+
+        #draw cube
         model = glm.mat4(1.0);
         model = glm.translate(model, glm.vec3(0.0, -3.0, 0.0));
         model = glm.scale(model, glm.vec3(4.0, 4.0, 4.0));
-        planet_shader.use()
-        planet_shader.set_mat4fv("model", glm.value_ptr(model));
-        planet.Draw(planet_shader);
-
-        # draw meteorites
-        asteroids_shader.use()
-        asteroids_shader.set_int("texture_diffuse1", 0)
-        gl.glActiveTexture(gl.GL_TEXTURE0)
-        gl.glBindTexture(gl.GL_TEXTURE_2D, rock.textures_loaded[0].id) # note: we also made the textures_loaded vector public (instead of private) from the model class.
-        for i in range(len(rock.meshes)):
-            gl.glBindVertexArray(rock.meshes[i].VAO)
-            gl.glDrawElementsInstanced(gl.GL_TRIANGLES, len(rock.meshes[i].indices), gl.GL_UNSIGNED_INT, None, amount)
-            gl.glBindVertexArray(0)
+        solid_color_shader.use()
+        solid_color_shader.set_mat4fv("model", glm.value_ptr(model));
+        monkey.Draw(solid_color_shader);
         gl.glUseProgram(0)
+
+    
+
+
 
         imgui.render()
         impl.render(imgui.get_draw_data())

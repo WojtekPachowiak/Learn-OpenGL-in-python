@@ -1,4 +1,4 @@
-WIDTH, HEIGHT = 1280, 720
+WIDTH, HEIGHT = 1440, 900
 
 #perspective
 FOV = None
