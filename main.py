@@ -9,6 +9,7 @@ import ctypes
 import sys
 import pygame
 import OpenGL.GL as gl
+from OpenGL.GL import * 
 from imgui.integrations.pygame import PygameRenderer
 import imgui
 
@@ -22,7 +23,7 @@ def main():
 
     pygame.init()
     pygame.display.gl_set_attribute(pygame.GL_STENCIL_SIZE, 8)
-    pygame.display.gl_set_attribute(pygame.GL_MULTISAMPLESAMPLES, 16) #antialiasing
+    # pygame.display.gl_set_attribute(pygame.GL_MULTISAMPLESAMPLES, 16) # MSAA antialiasing
 
     pygame.display.set_mode((WIDTH, HEIGHT), pygame.OPENGL | pygame.DOUBLEBUF | pygame.RESIZABLE) # |pygame.FULLSCREEN
 
@@ -40,6 +41,7 @@ def main():
     asteroids_shader = Shader("asteroids")
     planet_shader = Shader("planet")
     solid_color_shader = Shader("solid_color")
+    framebuffer_base_shader = Shader("framebuffer_base")
 
     # rock = Model("meshes/rock/rock.obj")
     planet = Model("meshes/planet/planet.obj")
@@ -87,6 +89,69 @@ def main():
 
     clock = pygame.time.Clock()
 
+
+
+    framebuffer = glGenFramebuffers(1);
+    glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
+    # create a multisampled color attachment texture
+    textureColorBufferMultiSampled = glGenTextures(1);
+    glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, textureColorBufferMultiSampled);
+    glTexImage2DMultisample(GL_TEXTURE_2D_MULTISAMPLE, 4, GL_RGB, WIDTH, HEIGHT, GL_TRUE);
+    glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, 0);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D_MULTISAMPLE, textureColorBufferMultiSampled, 0);
+
+    rbo = glGenRenderbuffers(1);
+    glBindRenderbuffer(GL_RENDERBUFFER, rbo);
+    glRenderbufferStorageMultisample(GL_RENDERBUFFER, 4, GL_DEPTH24_STENCIL8, WIDTH, HEIGHT);
+    glBindRenderbuffer(GL_RENDERBUFFER, 0);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, rbo);
+
+    if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE):
+        print("ERROR::FRAMEBUFFER:: Intermediate framebuffer is not complete!")
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+    # configure second post-processing framebuffer
+    intermediateFBO = glGenFramebuffers(1);
+    glBindFramebuffer(GL_FRAMEBUFFER, intermediateFBO);
+    # create a color attachment texture
+    screenTexture = glGenTextures(1);
+    glBindTexture(GL_TEXTURE_2D, screenTexture);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, WIDTH, HEIGHT, 0, GL_RGB, GL_UNSIGNED_BYTE, None);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, screenTexture, 0);	# we only need a color buffer
+
+    if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE):
+        print("ERROR::FRAMEBUFFER:: Intermediate framebuffer is not complete!")
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+    def add_screenquad():
+        '''add a quad that fills the entire screen'''
+        #buffer in Normalized Device Coordinates
+        vertices = np.array([ 
+            #positions   #texCoords
+            -1.0,  1.0,  0.0, 1.0,
+            -1.0, -1.0,  0.0, 0.0,
+            1.0, -1.0,  1.0, 0.0,
+
+            -1.0,  1.0,  0.0, 1.0,
+            1.0, -1.0,  1.0, 0.0,
+            1.0,  1.0,  1.0, 1.0
+        ],dtype=np.float32)
+        vao = gl.glGenVertexArrays(1)
+        vbo = gl.glGenBuffers(1)
+        gl.glBindVertexArray(vao)
+        gl.glBindBuffer(gl.GL_ARRAY_BUFFER, vbo)
+        gl.glBufferData(gl.GL_ARRAY_BUFFER, vertices.nbytes, vertices, gl.GL_STATIC_DRAW)
+        gl.glEnableVertexAttribArray(0);
+        gl.glVertexAttribPointer(0, 2, gl.GL_FLOAT, gl.GL_FALSE, 4 * vertices.itemsize, ctypes.c_void_p(0));
+        gl.glEnableVertexAttribArray(1);
+        gl.glVertexAttribPointer(1, 2, gl.GL_FLOAT, gl.GL_FALSE, 4 * vertices.itemsize, ctypes.c_void_p(8));
+        gl.glBindVertexArray(0)
+        glBindBuffer(GL_ARRAY_BUFFER, 0)
+        return vao
+    screenquad_vao = add_screenquad()
+
     def imgui_logic():
         if imgui.begin_main_menu_bar():
             if imgui.begin_menu("File", True):
@@ -121,6 +186,7 @@ def main():
         imgui.begin("FPS tracker", True,flags)
         imgui.text(f"FPS: {fps}")
         imgui.end()
+
 
 
     running = True
@@ -174,7 +240,11 @@ def main():
         gl.glClearColor(0.0, 0.0, 1.0, 1.0)
         gl.glClear(gl.GL_COLOR_BUFFER_BIT | gl.GL_DEPTH_BUFFER_BIT)
 
-
+        glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
+        glClearColor(0.1, 0.1, 0.1, 1.0);
+         
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        glEnable(GL_DEPTH_TEST);
 
         #draw cube
         model = glm.mat4(1.0);
@@ -183,12 +253,30 @@ def main():
         solid_color_shader.use()
         solid_color_shader.set_mat4fv("model", glm.value_ptr(model));
         monkey.Draw(solid_color_shader);
-        gl.glUseProgram(0)
+        
+
+
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, framebuffer);
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, intermediateFBO);
+        glBlitFramebuffer(0, 0, WIDTH, HEIGHT, 0, 0, WIDTH, HEIGHT, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+
+        # 3. now render quad with scene's visuals as its texture image
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        glClearColor(1.0, 1.0, .0, 1.0);
+        glClear(GL_COLOR_BUFFER_BIT);
+        glDisable(GL_DEPTH_TEST);
+
+        # draw Screen quad
+        framebuffer_base_shader.use();
+        glBindVertexArray(screenquad_vao);
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, screenTexture); # use the now resolved color attachment as the quad's texture
+        glDrawArrays(GL_TRIANGLES, 0, 6);
 
     
-
-
-
+        glBindTexture(GL_TEXTURE_2D, 0)
+        glBindVertexArray(0);
+        glUseProgram(0)
         imgui.render()
         impl.render(imgui.get_draw_data())
         pygame.display.flip()
@@ -197,3 +285,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+
