@@ -33,8 +33,9 @@ class TEXTURE_WRAP(Enum):
     GL_REPEAT = GL_REPEAT
 
 # for use with pygame
-def load_texture_pygame(path, texture, param: TEXTURE_WRAP = TEXTURE_WRAP.GL_REPEAT):
-    glBindTexture(GL_TEXTURE_2D, texture)
+def load_texture_pygame(path, param: TEXTURE_WRAP = TEXTURE_WRAP.GL_REPEAT):
+    tex = glGenTextures(1)
+    glBindTexture(GL_TEXTURE_2D, tex)
     # Set the texture wrapping parameters
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, param.value)
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, param.value)
@@ -47,7 +48,7 @@ def load_texture_pygame(path, texture, param: TEXTURE_WRAP = TEXTURE_WRAP.GL_REP
     image_width, image_height = image.get_rect().size
     img_data = pg.image.tostring(image, "RGBA")
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image_width, image_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, img_data)
-    return texture
+    return tex
 
 def generate_framebuffer(): 
     framebuffer = glGenFramebuffers(1);
