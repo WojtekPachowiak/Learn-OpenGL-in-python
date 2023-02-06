@@ -47,36 +47,41 @@ def load_texture_pygame(path, param: TEXTURE_WRAP = TEXTURE_WRAP.GL_REPEAT):
     image = pg.transform.flip(image, False, True)
     image_width, image_height = image.get_rect().size
     img_data = pg.image.tostring(image, "RGBA")
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image_width, image_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, img_data)
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_SRGB_ALPHA, image_width, image_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, img_data)
     return tex
 
-def generate_framebuffer(): 
-    framebuffer = glGenFramebuffers(1);
-    glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);   
+def generate_framebuffer(width=WIDTH, height=HEIGHT, attachement= GL_COLOR_ATTACHMENT0,texture_wrap_param=GL_REPEAT, texture_min_mag_filter_param=GL_NEAREST): 
     
     #generate texture
-    textureColorbuffer = glGenTextures(1);
-    glBindTexture(GL_TEXTURE_2D, textureColorbuffer);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, WIDTH, HEIGHT, 0, GL_RGB, GL_UNSIGNED_BYTE, None);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR );
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    tex = glGenTextures(1);
+    glBindTexture(GL_TEXTURE_2D, tex);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, None);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, texture_min_mag_filter_param );
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, texture_min_mag_filter_param);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, texture_wrap_param)
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, texture_wrap_param)
     glBindTexture(GL_TEXTURE_2D, 0);
 
     #attach it to currently bound framebuffer object
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, textureColorbuffer, 0);
+    framebuffer = glGenFramebuffers(1);
+    glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);   
+    glFramebufferTexture2D(GL_FRAMEBUFFER, attachement, GL_TEXTURE_2D, tex, 0);
 
-    rbo = glGenRenderbuffers(1);
-    glBindRenderbuffer(GL_RENDERBUFFER, rbo); 
-    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, WIDTH, HEIGHT);  
-    glBindRenderbuffer(GL_RENDERBUFFER, 0);
+    # rbo = glGenRenderbuffers(1);
+    # glBindRenderbuffer(GL_RENDERBUFFER, rbo); 
+    # glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, width, height);  
+    # glBindRenderbuffer(GL_RENDERBUFFER, 0);
 
-    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, rbo);
+    # glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, rbo);
+
+    glDrawBuffer(GL_NONE);
+    glReadBuffer(GL_NONE);
 
     if glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE:
         print("ERROR::FRAMEBUFFER:: Framebuffer is not complete!") 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
-    return framebuffer, textureColorbuffer
+    return framebuffer, tex
 
 
 

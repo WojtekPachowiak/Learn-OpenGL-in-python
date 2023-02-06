@@ -25,7 +25,7 @@ class Shader:
 
     def set_mat4fv(self, uniform_name:str, value:glm.mat4):
         loc = glGetUniformLocation(self.program, uniform_name)
-        glUniformMatrix4fv(loc, 1, GL_FALSE, value)
+        glUniformMatrix4fv(loc, 1, GL_FALSE, glm.value_ptr(value))
 
     def set_vec3(self, uniform_name:str, value:glm.vec3, count=1):   
         loc = glGetUniformLocation(self.program, uniform_name)
